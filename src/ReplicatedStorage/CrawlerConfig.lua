@@ -45,6 +45,23 @@ Config.CHASE_HEIGHT = 2.45
 Config.MIN_SQUEEZE_HEIGHT = 1.15     -- lowest it can flatten itself
 
 --------------------------------------------------
+-- LIGHT IN THE DARK
+--------------------------------------------------
+-- Your mansion is pitch black, so it carries its own light: two glowing eyes
+-- you see coming at you down a corridor, and a cold light that floods the
+-- spot when it catches someone so the whole attack can be seen.
+
+Config.EYE_COLOR = Color3.fromRGB(255, 70, 40)
+Config.EYE_SIZE = 0.17
+Config.EYE_OFFSET = Vector3.new(0.27, 0.34, -0.8)  -- on its head (sideways, up, forward); one each side
+Config.EYE_LIGHT_BRIGHTNESS = 1.2    -- the red glow the eyes throw on the floor and walls
+Config.EYE_LIGHT_RANGE = 6
+
+Config.CATCH_LIGHT_COLOR = Color3.fromRGB(205, 215, 255)
+Config.CATCH_LIGHT_BRIGHTNESS = 2.2
+Config.CATCH_LIGHT_RANGE = 18
+
+--------------------------------------------------
 -- SOUNDS
 --------------------------------------------------
 -- Id = the sound's asset id. A blank Id just doesn't play, so the game never

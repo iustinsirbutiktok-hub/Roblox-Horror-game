@@ -233,6 +233,88 @@ end
 -- WHAT THE CAUGHT PLAYER SEES AND HEARS
 --------------------------------------------------
 
+--------------------------------------------------
+-- LIGHT IN THE DARK
+--------------------------------------------------
+-- These only exist on your screen (each player makes their own), so nothing
+-- here touches the server or other players' lighting.
+
+local glowFolder = Instance.new("Folder")
+glowFolder.Name = "CrawlerGlow"
+glowFolder.Parent = workspace
+
+local function glowPart(name, size, visible)
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Shape = Enum.PartType.Ball
+	p.Size = Vector3.new(size, size, size)
+	p.Material = Enum.Material.Neon
+	p.Color = Config.EYE_COLOR
+	p.Transparency = visible and 0 or 1
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Parent = glowFolder
+	return p
+end
+
+local eyes = {}
+for _, side in ipairs({ 1, -1 }) do
+	local part = glowPart("CrawlerEye", Config.EYE_SIZE, true)
+	local light = Instance.new("PointLight")
+	light.Color = Config.EYE_COLOR
+	light.Range = Config.EYE_LIGHT_RANGE
+	light.Brightness = 0
+	light.Parent = part
+	eyes[side] = { part = part, light = light }
+end
+
+-- a cold light that floods the spot while it's got someone
+local catchLamp = glowPart("CrawlerCatchLight", 0.2, false)
+local catchLight = Instance.new("PointLight")
+catchLight.Color = Config.CATCH_LIGHT_COLOR
+catchLight.Range = Config.CATCH_LIGHT_RANGE
+catchLight.Brightness = 0
+catchLight.Shadows = true
+catchLight.Parent = catchLamp
+
+local lampLevel = 0
+local lampKick = 0
+local nextBlink = os.clock() + 3
+local blinkUntil = 0
+
+local function updateGlow(dt, now, catching, chasing, victimHead, mouth)
+	-- eyes: always on, brighter when it's hunting you, a slow blink now and then
+	if now >= nextBlink then
+		blinkUntil = now + 0.13
+		nextBlink = now + 2.5 + math.random() * 5
+	end
+	local open = now >= blinkUntil
+	local glow = (catching and 1.7 or chasing and 1.2 or 0.75) * (0.85 + 0.15 * math.noise(now * 6, 0.5))
+	local head = body.headCF
+	for side, eye in pairs(eyes) do
+		if head then
+			local o = Config.EYE_OFFSET
+			eye.part.CFrame = head * CFrame.new(o.X * side, o.Y, o.Z)
+		end
+		eye.part.Transparency = open and 0 or 1
+		eye.light.Brightness = open and Config.EYE_LIGHT_BRIGHTNESS * glow or 0
+	end
+
+	-- the catch light: fades in on the grab, flares with every slam, fades out after
+	local goal = catching and 1 or 0
+	lampLevel += (goal - lampLevel) * math.clamp(dt * (catching and 8 or 1.5), 0, 1)
+	lampKick = math.max(lampKick - dt * 3, 0)
+	if mouth then
+		local centre = victimHead and victimHead.Position:Lerp(mouth, 0.45) or mouth
+		catchLamp.Position = centre + Vector3.new(0, 1.8, 0)
+	end
+	catchLight.Brightness = Config.CATCH_LIGHT_BRIGHTNESS * lampLevel * (0.82 + 0.18 * math.noise(now * 11, 7.3))
+		+ lampKick * 2 * lampLevel
+end
+
 local camShake = 0
 local camWeight = 0
 local savedFov = nil
@@ -297,7 +379,7 @@ local function startMyCatch()
 	colour.Name = "CrawlerColour"
 	colour.Parent = Lighting
 	TweenService:Create(colour, TweenInfo.new(0.4), {
-		Saturation = -0.45, Contrast = 0.25, Brightness = -0.04, TintColor = Color3.fromRGB(255, 205, 200),
+		Saturation = -0.45, Contrast = 0.25, Brightness = 0.03, TintColor = Color3.fromRGB(255, 205, 200),
 	}):Play()
 	local cam = workspace.CurrentCamera
 	savedFov = cam and cam.FieldOfView or 70
@@ -495,6 +577,7 @@ local function catchEvent(e, catch, victimParts)
 			play(name, parent, e[5], e[6])
 		end
 	elseif kind == "kick" then
+		lampKick += e[3]
 		if mine then
 			camShake += e[3]
 		else
@@ -614,6 +697,8 @@ afterAnimation:Connect(function(a, b)
 		motor.Transform = cf
 	end
 	mouthPos = body.mouth
+	updateGlow(dt, now, catch ~= nil and catch.start ~= nil and serverNow - catch.start < catch.def.length + 0.4,
+		monster:GetAttribute("Chasing") == true, lastVictimHead, mouthPos)
 
 	for _, e in ipairs(events) do
 		onBodyEvent(e)
