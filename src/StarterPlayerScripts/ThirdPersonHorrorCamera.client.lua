@@ -300,9 +300,19 @@ end
 
 local tracks = {}
 
+-- walking, sprinting and crawling are done by BodyMotion now (worked out
+-- live, not played from these); crouching still uses its animations
+local PROCEDURAL = { Walk = true, Sprint = true, Crawl = true, CrawlStart = true }
+
 local function loadTracks()
 
+	table.clear(tracks)
+
 	for stateName, assetId in pairs(ANIMATION_IDS) do
+
+		if PROCEDURAL[stateName] then
+			continue
+		end
 
 		local anim = Instance.new("Animation")
 		anim.AnimationId = assetId
@@ -436,6 +446,8 @@ local function playStartAnimation(stateName)
 	local startTrack = tracks[stateName]
 
 	if not startTrack then
+		-- (BodyMotion does this one: just clear what was playing)
+		stopMovementAnimations()
 		return
 	end
 

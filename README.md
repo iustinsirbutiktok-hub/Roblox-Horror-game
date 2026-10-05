@@ -95,3 +95,17 @@ Three basement doors: **Wood** (rotten cellar door), **Steel** (rusted boiler ro
   - A miss smashes the door into you. After 3 misses the door bursts and throws you on your back.
 - If nobody is holding the door, a chasing Crawler smashes straight through it, while a prowling one creeps it open.
 - CrawlerAI, CrawlerBody and CrawlerAnimator have door support built in. Without the door scripts they behave exactly as before.
+
+## Movement
+
+| Script | Type | Goes in |
+|---|---|---|
+| `src/StarterPlayerScripts/BodyMotion.client.lua` | LocalScript `BodyMotion` | StarterPlayerScripts |
+| `src/ServerScriptService/BodyMotionServer.server.lua` | Script `BodyMotionServer` | ServerScriptService |
+| `src/StarterPlayerScripts/ThirdPersonHorrorCamera.client.lua` | LocalScript | StarterPlayerScripts (no longer plays the Walk/Sprint/Crawl/CrawlStart animations) |
+
+BodyMotion works out each R6 body every frame from its real speed, direction, acceleration, turning and health. It covers:
+- walking, strafing, walking backwards and sprinting, plus a limp below 25% health
+- dropping into a crawl, the forearm crawl itself, and pushing back up
+
+It lets go for tools, other Action animations, jumping and falling, climbing, hiding, doors, catches and being downed. Crouching keeps its own animations.
