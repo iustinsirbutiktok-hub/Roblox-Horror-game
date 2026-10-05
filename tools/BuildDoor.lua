@@ -1,7 +1,8 @@
 -- BuildDoor
 -- Run in Studio's Command Bar to put a door in a doorway:
 --   1. Put a plain block (Part) in the doorway that fills the gap exactly:
---      as wide and tall as the opening, as thick as the wall. Keep it upright.
+--      as wide and tall as the opening, as thick as the wall. Keep it upright
+--      (any turn is fine - it works out which way the doorway runs).
 --   2. Select it (you can select several blocks to build several doors at once).
 --   3. Change KIND below to "Wood", "Steel" or "Cell" (and HINGE if you want).
 --   4. View > Command Bar, paste all of this, press Enter. Save your place.
@@ -262,15 +263,24 @@ for _, s in ipairs(Selection:Get()) do
 	end
 end
 assert(#blocks > 0, "Select the block(s) filling your doorway(s) first, then run this again.")
+for _, block in ipairs(blocks) do
+	assert(math.abs(block.CFrame.UpVector.Y) > 0.98 and block.Size.Y > math.max(block.Size.X, block.Size.Z) * 0.8,
+		block:GetFullName() .. " has to stand upright, tall side up (Size Y = the doorway's height)")
+end
 
 ChangeHistoryService:SetWaypoint("Before building doors")
 local built = {}
 for _, block in ipairs(blocks) do
+	-- the doorway runs along the block's longer flat side, whichever way the block was made
 	local f = block.CFrame
+	local W, H, T = block.Size.X, block.Size.Y, block.Size.Z
+	if block.Size.Z > block.Size.X then
+		f = f * CFrame.Angles(0, math.pi / 2, 0)
+		W, T = block.Size.Z, block.Size.X
+	end
 	if HINGE == "Right" then
 		f = f * CFrame.Angles(0, math.pi, 0)
 	end
-	local W, H, T = block.Size.X, block.Size.Y, block.Size.Z
 
 	local model = Instance.new("Model")
 	model.Name = KIND .. "Door"
