@@ -86,7 +86,7 @@ Three basement doors: **Wood** (rotten cellar door), **Steel** (rusted boiler ro
 | `src/ServerScriptService/DoorSystem.server.lua` | Script `DoorSystem` | ServerScriptService |
 | `src/StarterPlayerScripts/DoorClient.client.lua` | LocalScript `DoorClient` | StarterPlayerScripts |
 | `tools/BuildDoor.lua` | Command Bar | select a block filling a doorway, set `KIND`, run |
-| `tools/Camera-IsBarricading-change.lua` | edit | add `IsBarricading` to `isExternallyControlled` in ThirdPersonHorrorCamera |
+| `src/StarterPlayerScripts/ThirdPersonHorrorCamera.client.lua` | LocalScript | StarterPlayerScripts (your camera, with `IsBarricading` added) |
 
 - **Left click** a door to open or close it. It swings away from you.
 - **E** (HOLD on mobile) while the Crawler is hunting within 70 studs: you slam the door and lean your weight on it.
