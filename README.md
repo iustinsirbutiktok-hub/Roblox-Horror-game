@@ -109,3 +109,20 @@ BodyMotion works out each R6 body every frame from its real speed, direction, ac
 - dropping into a crawl, the forearm crawl itself, and pushing back up
 
 It lets go for tools, other Action animations, jumping and falling, climbing, hiding, doors, catches and being downed. Crouching keeps its own animations.
+
+## Main breaker
+
+| Script | Type | Goes in |
+|---|---|---|
+| `src/ReplicatedStorage/BreakerLever.lua` | ModuleScript `BreakerLever` | ReplicatedStorage |
+| `src/StarterPlayerScripts/LeverClient.client.lua` | LocalScript `LeverClient` | StarterPlayerScripts |
+| `src/ServerScriptService/PowerSystem.server.lua` | Script | ServerScriptService (replaces PowerSystem) |
+| `src/StarterPlayerScripts/PowerClient.client.lua` | LocalScript | StarterPlayerScripts (replaces PowerClient) |
+
+How the breaker works:
+- Repairing every wire panel and fuse cabinet sets `Power.Ready`.
+- Left-clicking the breaker (Workspace > `LEVER LIGHTS`) throws it. If the power is Ready, the power comes on.
+- If you pull it too early, it sparks and kicks back.
+- If there's no breaker in the map, the power comes on by itself, like before.
+
+The test command `lever` (on the Power folder's TestCommand) throws the breaker. If the swing goes the wrong way, set a `SwingAngle` attribute (in degrees) on `LEVER LIGHTS`.

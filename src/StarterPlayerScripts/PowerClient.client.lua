@@ -6,8 +6,9 @@
 --     dies, "BASEMENT" fades in, then "The power needs to be turned back on"
 --   * the power's out: it's dark down here
 --   * TAB: the objective fades in - Turn on the power, Wire panels 0/3,
---     Fuse cabinets 0/1 - things get checked off as they're done (and it
---     shows itself for a moment whenever one is)
+--     Fuse cabinets 0/1, Main breaker 0/1 - things get checked off as
+--     they're done (and it shows itself for a moment whenever one is).
+--     With every repair done it tells you to throw the breaker (LeverClient)
 --   * all done: the basement's ceiling lights stutter on... and every 10-15
 --     seconds they flicker for about a second, with a faint buzz. A few of
 --     them ("Faulty" attribute) never quite work right.
@@ -558,7 +559,7 @@ objectiveGui.Parent = playerGui
 local panel = Instance.new("CanvasGroup")
 panel.AnchorPoint = Vector2.new(0, 0.5)
 panel.Position = UDim2.new(0, 26, 0.38, 0)
-panel.Size = UDim2.fromOffset(380, 150)
+panel.Size = UDim2.fromOffset(380, 180)
 panel.BackgroundTransparency = 1
 panel.GroupTransparency = 1
 panel.Parent = objectiveGui
@@ -629,8 +630,9 @@ local function item(key, name, y)
 end
 item("Wires", "Wire panels", 44)
 item("Fuses", "Fuse cabinets", 74)
+item("Lever", "Main breaker", 104)
 
-local footer = text(panel, "The lights are back on.", 18, DIM, 0, 110, 380, 24)
+local footer = text(panel, "The lights are back on.", 18, DIM, 0, 140, 380, 24)
 footer.TextTransparency = 1
 footer.TextStrokeTransparency = 1
 
@@ -701,9 +703,10 @@ local function updateItems(first)
 				changed = true
 				-- the number ticks over
 				it.count.TextColor3 = Color3.fromRGB(240, 232, 214)
-				it.count.Position = UDim2.fromOffset(250, 41 + (key == "Wires" and 0 or 30))
+				local rowY = key == "Wires" and 44 or key == "Fuses" and 74 or 104
+				it.count.Position = UDim2.fromOffset(250, rowY - 3)
 				TweenService:Create(it.count, TweenInfo.new(0.35, Enum.EasingStyle.Back),
-					{ Position = UDim2.fromOffset(250, key == "Wires" and 44 or 74) }):Play()
+					{ Position = UDim2.fromOffset(250, rowY) }):Play()
 			end
 			it.count.Text = str
 		end
@@ -719,7 +722,25 @@ local function updateItems(first)
 			uncheck(it)
 		end
 	end
+	-- (no breaker in this map: no breaker line)
+	local leverRow = items.Lever
+	local hasLever = (power:GetAttribute("LeverTotal") or 0) > 0
+	for _, part in ipairs({ leverRow.box, leverRow.label, leverRow.count, leverRow.strike }) do
+		part.Visible = hasLever
+	end
 	local on = power:GetAttribute("On") == true
+	-- every repair done, the breaker still up: say so
+	local waiting = hasLever and power:GetAttribute("Ready") == true and not on
+	if waiting and footer.Text ~= "Throw the main breaker." then
+		footer.Text = "Throw the main breaker."
+		TweenService:Create(footer, TweenInfo.new(0.8), { TextTransparency = 0.1, TextStrokeTransparency = 0.6 }):Play()
+		if not first then
+			peekPanel(6)
+		end
+	elseif not waiting and footer.Text == "Throw the main breaker." then
+		footer.Text = "The lights are back on."
+		footer.TextTransparency, footer.TextStrokeTransparency = 1, 1
+	end
 	if on and not allDoneShown then
 		allDoneShown = true
 		local d = first and 0 or 0.9
@@ -739,7 +760,7 @@ local function updateItems(first)
 	end
 end
 
-for _, name in ipairs({ "WiresDone", "WiresTotal", "FusesDone", "FusesTotal", "On" }) do
+for _, name in ipairs({ "WiresDone", "WiresTotal", "FusesDone", "FusesTotal", "LeverDone", "LeverTotal", "Ready", "On" }) do
 	power:GetAttributeChangedSignal(name):Connect(function()
 		updateItems(false)
 	end)
