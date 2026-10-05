@@ -25,6 +25,14 @@ local RunService = game:GetService("RunService")
 local Config = require(ReplicatedStorage:WaitForChild("CrawlerConfig"))
 local Shared = require(ReplicatedStorage:WaitForChild("CrawlerShared"))
 
+-- doors (optional: only if you've added the door system)
+local Doors, DoorConfig = nil, nil
+local doorModule = script.Parent:FindFirstChild("DoorServer")
+if doorModule and ReplicatedStorage:FindFirstChild("DoorConfig") then
+	Doors = require(doorModule)
+	DoorConfig = require(ReplicatedStorage.DoorConfig)
+end
+
 local UP = Vector3.new(0, 1, 0)
 local WANDER_RADIUS = 70
 
@@ -169,6 +177,7 @@ monster:SetAttribute("CrawlerReady", true)
 --------------------------------------------------
 
 local graceUntil = {}      -- player -> time it can catch them again
+local ignoreUntil = 0      -- after a door beats it, it sulks off and ignores everyone
 
 local function alive(player)
 	local character = player.Character
@@ -205,6 +214,9 @@ local function canSee(character, hrp)
 end
 
 local function findTarget()
+	if os.clock() < ignoreUntil then
+		return nil
+	end
 	local best, bestDistance = nil, math.huge
 	for _, player in ipairs(Players:GetPlayers()) do
 		local character, hrp = alive(player)
@@ -490,6 +502,91 @@ local function spot(player)
 	busy = false
 end
 
+--------------------------------------------------
+-- DOORS
+--------------------------------------------------
+-- Prowling, it creeps a closed door open. Chasing, it smashes straight
+-- through it. If someone's leaning on the other side it throws itself at the
+-- door until they break or it gives up.
+
+local function publishDoor(layout)
+	monster:SetAttribute("DoorPoint", layout.point)
+	monster:SetAttribute("DoorNormal", layout.normal)
+	monster:SetAttribute("DoorEdge", layout.edge)
+end
+
+local DOOR_STAND = 4.0     -- how far from the door it plants itself (its head and claws just reach it)
+
+-- plant itself on its side of the door, facing it
+local function squareUp(layout, distance)
+	local spot = layout.centre:PointToWorldSpace(Vector3.new(0, 0, layout.side * distance))
+	local pos = Vector3.new(spot.X, root.Position.Y, spot.Z)
+	local look = Vector3.new(-layout.normal.X, 0, -layout.normal.Z)
+	root.Anchored = true
+	slide(CFrame.lookAt(pos, pos + look), 0.22)
+end
+
+local function smashDoor(model)
+	busy = true
+	waypoints = {}
+	humanoid:MoveTo(root.Position)
+	local layout = Doors.layout(model, root.Position)
+	publishDoor(layout)
+	squareUp(layout, DOOR_STAND)
+	setState("DoorBash")
+	task.wait(0.5)                          -- rears back...
+	Doors.breakDoor(model, -layout.normal)  -- ...and goes through it
+	task.wait(0.3)
+	root.Anchored = false
+	setState("Move")
+	burstUntil = os.clock() + 0.6
+	busy = false
+end
+
+local function doorFight(model)
+	busy = true
+	waypoints = {}
+	humanoid:MoveTo(root.Position)
+	local layout = Doors.layout(model, root.Position)
+	publishDoor(layout)
+	squareUp(layout, DOOR_STAND)
+	monster:SetAttribute("SlamAt", 0)
+	setState("DoorSlam")
+	local outcome = Doors.fight(model, monster)
+	if outcome == "won" then
+		-- one last furious slam and a growl... then it gives up and slinks off
+		setState("DoorRage")
+		task.wait(2.0)
+		root.Anchored = false
+		setState("Move")
+		target = nil
+		ignoreUntil = os.clock() + DoorConfig.GIVE_UP_TIME
+		computePath(root.Position + layout.normal * 35)
+		nextWanderAt = math.huge
+	elseif outcome == "breach" then
+		-- through, roaring
+		task.wait(0.2)
+		setState("DoorRage")
+		task.wait(0.9)
+		root.Anchored = false
+		setState("Move")
+		burstUntil = os.clock() + 0.8
+	else
+		-- nobody holding it (or they let go): straight through
+		if not model:GetAttribute("Broken") then
+			setState("DoorBash")
+			task.wait(0.45)
+			Doors.breakDoor(model, -layout.normal)
+			task.wait(0.3)
+		end
+		root.Anchored = false
+		setState("Move")
+	end
+	busy = false
+end
+
+local nextDoorCheck = 0
+
 while monster.Parent do
 	task.wait(0.1)
 	if busy then
@@ -556,6 +653,29 @@ while monster.Parent do
 					nextWanderAt = os.clock() + 2
 				end
 				continue
+			end
+		end
+	end
+
+	-- a closed door in the way?
+	if Doors and now >= nextDoorCheck then
+		nextDoorCheck = now + 0.15
+		local dir = humanoid.MoveDirection
+		if dir.Magnitude < 0.1 then
+			dir = root.CFrame.LookVector
+		end
+		dir = Vector3.new(dir.X, 0, dir.Z)
+		local model = dir.Magnitude > 0.01 and Doors.ahead(root.Position, dir.Unit * 3.4, bodies()) or nil
+		if model then
+			if chasing then
+				if (model:GetAttribute("BarricadedBy") or 0) ~= 0 then
+					doorFight(model)
+				else
+					smashDoor(model)
+				end
+				continue
+			else
+				Doors.open(model, root.Position, "creep")
 			end
 		end
 	end

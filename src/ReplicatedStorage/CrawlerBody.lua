@@ -10,6 +10,8 @@
 --   * chasing: a low spider-like gallop, jaw hanging open
 --   * vents: flattens itself, splays its limbs out wide, head turned sideways
 --   * catches: follows the choreography in CrawlerShared
+--   * doors: rears back and smashes through, or throws itself at a held door,
+--     claws through the gap when the holder slips
 -- CrawlerAnimator feeds it what the world looks like (where the root part is,
 -- raycasts, the server's state) and applies what comes out.
 
@@ -299,6 +301,8 @@ end
 --   state ("Move" / "Spot" / "Catch"), stateTime (seconds into that state), stateStart,
 --   chasing (bool), target (Vector3: what it's looking at, or nil),
 --   catch = nil or { kind, t, env, victimTorso, victimHead, standY },
+--   door = nil or { point, normal (door -> it), edge } while it's at a door,
+--   slamAt, slamKind = the last time it was thrown against a held door, and how it went
 -- }
 -- Returns the Motor6D transforms (motor -> CFrame) and a list of events.
 function Body:update(input)
@@ -361,9 +365,39 @@ function Body:update(input)
 		if input.state == "Spot" then
 			emit(self, "sound", "Screech", "head")
 			self.headRoll.v += (math.random() < 0.5 and -6 or 6)
+		elseif input.state == "DoorBash" then
+			emit(self, "sound", "Lunge", "head")
+		elseif input.state == "DoorSlam" then
+			emit(self, "sound", "Growl", "head")
+		elseif input.state == "DoorRage" then
+			emit(self, "sound", "Screech", "head", 1.1, 0.75)
+			emit(self, "sound", "Growl", "head", 1.2, 0.85)
 		end
 		self.lastState = input.state
 	end
+
+	-- at a door: throwing itself at it every time the holder pushes (or misses)
+	local doorState = input.door ~= nil
+		and (input.state == "DoorSlam" or input.state == "DoorBash" or input.state == "DoorRage")
+	local doorT = input.stateTime or 0
+	if input.slamAt ~= self.lastSlamAt then
+		local fresh = self.lastSlamAt ~= nil
+		self.lastSlamAt = input.slamAt
+		if fresh and (input.slamAt or 0) > 0 then
+			self.slamTime = now
+			self.slamMiss = input.slamKind == "miss"
+			self.offset.v += Vector3.new(0, 1.5, -10)
+			self.rear.v += 4
+			self.headPitch.v -= 6
+			self.jaw.v += 14
+			if self.slamMiss then
+				emit(self, "sound", "Lunge", "head", 0.8, 1.1)
+			elseif math.random() < 0.4 then
+				emit(self, "sound", "Growl", "head", 0.6, 1)
+			end
+		end
+	end
+	local sinceSlam = now - (self.slamTime or -10)
 
 	--------------------------------------------------
 	-- gait settings for this frame
@@ -410,6 +444,10 @@ function Body:update(input)
 		if cc.swipeW > 0.02 then
 			gait.frozen.RA = true
 		end
+	end
+	if doorState then
+		gait.frozen.RA = true
+		gait.frozen.LA = true
 	end
 	self:stepLimbs(root, dt, now, cast, gait)
 
@@ -466,6 +504,35 @@ function Body:update(input)
 			rear = s < 0.3 and rad(16) or rad(-4)
 			offY += s < 0.3 and 0.2 or -0.35
 		end
+		if doorState then
+			if input.state == "DoorBash" then
+				-- rears back... then throws its whole weight through the door
+				local a = Shared.smooth(doorT / 0.42)
+				if doorT < 0.42 then
+					rear = rad(24) * a
+					offZ += 0.75 * a
+					offY += 0.25 * a
+				else
+					rear = rad(-8)
+					offZ -= 1.3
+					offY -= 0.2
+				end
+			elseif input.state == "DoorRage" then
+				-- rears up tall against the door, screaming, then drops
+				local a = Shared.smooth(doorT / 0.35) * (1 - Shared.smooth((doorT - 1.5) / 0.5))
+				rear = rad(40) * a
+				offY += 0.45 * a
+				offZ -= 0.35 * a
+			else
+				-- pressed up against the door, heaving
+				rear = rad(10) + 0.05 * sin(t * 3.1)
+				offZ -= 0.35
+				offY += 0.06 * sin(t * 3.1)
+			end
+			pitch = slope
+			yawB = 0.06 * sin(t * 1.3)
+			roll = 0.05 * sin(t * 2.3)
+		end
 	end
 	self.offset.goal = Vector3.new(0, offY, offZ)
 	self.pitch.goal, self.yaw.goal, self.roll.goal, self.rear.goal = pitch, yawB, roll, rear
@@ -473,7 +540,7 @@ function Body:update(input)
 	--------------------------------------------------
 	-- twitches (only when it isn't busy killing you)
 	--------------------------------------------------
-	if not catch and input.state ~= "Spot" and now >= self.nextTwitch then
+	if not catch and not doorState and input.state ~= "Spot" and now >= self.nextTwitch then
 		local calm = not chasing
 		self.nextTwitch = now + (calm and 1.2 + math.random() * 2.6 or 2.5 + math.random() * 3)
 		local r = math.random()
@@ -593,6 +660,24 @@ function Body:update(input)
 				pole = Vector3.new(1, 0.6, 0.8)
 			end
 		end
+		if doorState and l.arm then
+			-- claws on the door, scrabbling at it
+			local d = input.door
+			local scrabble = noise(t * 3.2, l.side * 7.1)
+			local onDoor = d.point + d.normal * 1.8 + root.RightVector * (l.side * 0.8)
+				+ UP * ((l.side > 0 and 0.45 or -0.05) + scrabble * 0.35)
+			if input.state == "DoorBash" and doorT < 0.42 then
+				onDoor += d.normal * 0.6                       -- pulled back for the hit
+			end
+			-- miss a push and its right hand comes through the gap after you
+			if l.key == "RA" and self.slamMiss and sinceSlam < 0.9 then
+				local a = Shared.smooth(sinceSlam / 0.15) * (1 - Shared.smooth((sinceSlam - 0.55) / 0.35))
+				onDoor = onDoor:Lerp(d.edge - d.normal * 0.9 + UP * 0.2, a)
+			end
+			target = onDoor
+			endRot = nil
+			pole = Vector3.new(l.side * 1.0, 0.7, 0.4)
+		end
 		local _, _, endPart = Shared.solveLimb(l, torso, torsoInv, target, rootRot:VectorToWorldSpace(pole), endRot, out)
 		ends[l.key] = endPart
 	end
@@ -605,6 +690,8 @@ function Body:update(input)
 	local lookAt = nil
 	if catch and catch.victimHead then
 		lookAt = catch.victimHead.Position
+	elseif doorState then
+		lookAt = input.door.point
 	elseif input.target and (chasing or input.state == "Spot") then
 		lookAt = input.target
 	end
@@ -637,6 +724,8 @@ function Body:update(input)
 		shake = cc.shake
 	elseif input.state == "Spot" then
 		shake = (input.stateTime or 0) < 0.6 and 0.7 or 0
+	elseif doorState then
+		shake = input.state == "DoorRage" and (doorT < 1.6 and 0.9 or 0) or (sinceSlam < 0.4 and 0.6 or 0.15)
 	end
 	self.headYaw.goal, self.headPitch.goal, self.headRoll.goal = yawGoal, pitchGoal, rollGoal
 	local hy = Shared.stepSpring(self.headYaw, dt) + noise(t * 23, 3.3) * 0.22 * shake
@@ -649,6 +738,10 @@ function Body:update(input)
 		jawGoal = cc.jaw
 	elseif input.state == "Spot" then
 		jawGoal = (input.stateTime or 0) < 0.65 and 1.15 or 0.5
+	elseif doorState then
+		jawGoal = input.state == "DoorRage" and (doorT < 1.6 and 1.3 or 0.4)
+			or input.state == "DoorBash" and 1.1
+			or 0.6 + 0.25 * sin(t * 6.1)
 	elseif chasing then
 		jawGoal = 0.45 + 0.15 * sin(t * 7.3)
 	else

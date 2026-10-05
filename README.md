@@ -74,3 +74,24 @@ The ones worth filling first: `Breath`, `BoneCrack`, `Chatter`, `Growl`, `VentSc
 Everything is in `CrawlerConfig`: speeds (your sprint is 20, so it chases at 18.5), how far it
 sees, `HIT_DAMAGE`, catch range, how low it crouches. The catch choreography (every keyframe and
 when each sound plays) lives in `CrawlerShared` under `Shared.CATCHES`.
+
+## Doors
+
+Three basement doors: **Wood** (rotten cellar door), **Steel** (rusted boiler room) and **Cell** (barred gate).
+
+| Script | Type | Goes in |
+|---|---|---|
+| `src/ReplicatedStorage/DoorConfig.lua` | ModuleScript `DoorConfig` | ReplicatedStorage |
+| `src/ServerScriptService/DoorServer.lua` | ModuleScript `DoorServer` | ServerScriptService |
+| `src/ServerScriptService/DoorSystem.server.lua` | Script `DoorSystem` | ServerScriptService |
+| `src/StarterPlayerScripts/DoorClient.client.lua` | LocalScript `DoorClient` | StarterPlayerScripts |
+| `tools/BuildDoor.lua` | Command Bar | select a block filling a doorway, set `KIND`, run |
+| `tools/Camera-IsBarricading-change.lua` | edit | add `IsBarricading` to `isExternallyControlled` in ThirdPersonHorrorCamera |
+
+- **Left click** a door to open or close it. It swings away from you.
+- **E** (HOLD on mobile) while the Crawler is hunting within 70 studs: you slam the door and lean your weight on it.
+- When the Crawler hits the door, a dial comes up. Push when the red blade crosses the white window.
+  - A good push holds the door. After 7-8 good pushes it rages once and leaves, ignoring everyone for 18 s.
+  - A miss smashes the door into you. After 3 misses the door bursts and throws you on your back.
+- If nobody is holding the door, a chasing Crawler smashes straight through it, while a prowling one creeps it open.
+- CrawlerAI, CrawlerBody and CrawlerAnimator have door support built in. Without the door scripts they behave exactly as before.

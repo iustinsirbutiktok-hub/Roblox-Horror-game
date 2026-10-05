@@ -680,6 +680,16 @@ afterAnimation:Connect(function(a, b)
 		target = head and head.Position
 	end
 
+	-- at a door: where it is and which way it faces (CrawlerAI sets these)
+	local doorInput = nil
+	if state == "DoorSlam" or state == "DoorBash" or state == "DoorRage" then
+		local point, normal = monster:GetAttribute("DoorPoint"), monster:GetAttribute("DoorNormal")
+		local edge = monster:GetAttribute("DoorEdge")
+		if typeof(point) == "Vector3" and typeof(normal) == "Vector3" then
+			doorInput = { point = point, normal = normal, edge = typeof(edge) == "Vector3" and edge or point }
+		end
+	end
+
 	local out, events = body:update({
 		dt = accum,
 		now = now,
@@ -691,6 +701,9 @@ afterAnimation:Connect(function(a, b)
 		chasing = monster:GetAttribute("Chasing") == true,
 		target = target,
 		catch = catchInput,
+		door = doorInput,
+		slamAt = monster:GetAttribute("SlamAt") or 0,
+		slamKind = monster:GetAttribute("SlamKind"),
 	})
 	accum = 0
 	for motor, cf in pairs(out) do
