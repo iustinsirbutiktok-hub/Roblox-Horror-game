@@ -12,6 +12,10 @@
 --   * catches: follows the choreography in CrawlerShared
 --   * doors: rears back and smashes through, or throws itself at a held door,
 --     claws through the gap when the holder slips
+--   * walls and ceilings: the body is always solved as if on a floor; the
+--     animator hands it a turned "floor world" (input.space) and it turns the
+--     result back onto the wall or ceiling. Up there its head twists round
+--     the right way up to stare at you (input.flip).
 -- CrawlerAnimator feeds it what the world looks like (where the root part is,
 -- raycasts, the server's state) and applies what comes out.
 
@@ -95,6 +99,8 @@ function Body.new(rig, info)
 	self.headYaw = Shared.spring(0, 17, 0.48)
 	self.headPitch = Shared.spring(0, 17, 0.5)
 	self.headRoll = Shared.spring(0, 12, 0.45)
+	self.flip = Shared.spring(0, 5.5, 0.62)              -- head twisted round (0..pi)
+	self.flipWanted = false
 	self.jaw = Shared.spring(0.1, 26, 0.42)
 	self.tilt = 0
 	self.tiltUntil = 0
@@ -269,6 +275,12 @@ function Body:stepLimbs(root, dt, now, cast, gait)
 			if go then
 				local to, material = self:groundAt(want, root, cast)
 				local arc = l.arm and gait.armArc or gait.legArc
+				-- now and then a hand hesitates: lifts too high, hangs there
+				-- feeling the air, then comes down
+				if l.arm and gait.run < 0.4 and math.random() < 0.16 then
+					duration *= 1.9
+					arc *= 1.6
+				end
 				arc = math.min(arc, math.max(self.ceiling - 1.6, 0.15))
 				self:startSwing(st, l, st.plant, to, material, duration, arc)
 				swinging += 1
@@ -282,7 +294,9 @@ function Body:limbPoint(l, st, root)
 	if st.swing then
 		local s = st.swing
 		local a = clamp(s.t, 0, 1)
-		local e = Shared.smooth(a)
+		-- snatched up and thrown forward, then set down slowly and carefully:
+		-- jerky, insect-like, never a smooth robotic arc
+		local e = lerp(Shared.smooth(a), 1 - (1 - a) ^ 2.6, 0.7)
 		local p = s.from:Lerp(s.to, e)
 		local h = s.arc * math.sin(pi * a) ^ 0.7
 		p += UP * h + root.RightVector * (l.side * 0.2 * sin(pi * a))
@@ -365,6 +379,14 @@ function Body:update(input)
 		if input.state == "Spot" then
 			emit(self, "sound", "Screech", "head")
 			self.headRoll.v += (math.random() < 0.5 and -6 or 6)
+		elseif input.state == "Watch" then
+			emit(self, "sound", "Growl", "head", 0.6, 0.75)
+		elseif input.state == "Stun" then
+			-- blinded by the flash
+			emit(self, "sound", "Screech", "head", 1, 1.35)
+			emit(self, "sound", "BoneCrack", "head", 0.9, 0.9)
+			self.headPitch.v += 9
+			self.offset.v += Vector3.new(0, 2.5, 0)
 		elseif input.state == "DoorBash" then
 			emit(self, "sound", "Lunge", "head")
 		elseif input.state == "DoorSlam" then
@@ -434,6 +456,17 @@ function Body:update(input)
 	--------------------------------------------------
 	-- body pose
 	--------------------------------------------------
+	-- blinded by a flash: claws over its eyes, rearing back, staggering
+	local stun = 0
+	if input.state == "Stun" and not catch then
+		local s = input.stateTime or 0
+		stun = Shared.smooth(s / 0.12) * (1 - Shared.smooth((s - 1.45) / 0.45))
+		if stun > 0.02 then
+			gait.frozen.RA = true
+			gait.frozen.LA = true
+		end
+	end
+
 	local cc = nil
 	if catch then
 		cc = Shared.sampleCrawler(catch.kind, catch.t, catch.env, self.cc)
@@ -503,6 +536,18 @@ function Body:update(input)
 			local s = input.stateTime or 0
 			rear = s < 0.3 and rad(16) or rad(-4)
 			offY += s < 0.3 and 0.2 or -0.35
+		elseif input.state == "Watch" then
+			-- dead still, pressed flat, every muscle drawn in
+			offY -= 0.25
+			rear = rad(-6)
+		elseif stun > 0 then
+			-- reared up and back off the light, swaying, half off balance
+			local s = input.stateTime or 0
+			rear = rad(30) * stun + rad(6) * sin(s * 7) * stun
+			offY += 0.3 * stun
+			pitch -= 0.12 * stun
+			roll += 0.16 * sin(s * 5.3) * stun
+			yawB += 0.2 * sin(s * 3.1) * stun
 		end
 		if doorState then
 			if input.state == "DoorBash" then
@@ -540,7 +585,7 @@ function Body:update(input)
 	--------------------------------------------------
 	-- twitches (only when it isn't busy killing you)
 	--------------------------------------------------
-	if not catch and not doorState and input.state ~= "Spot" and now >= self.nextTwitch then
+	if not catch and not doorState and input.state ~= "Spot" and input.state ~= "Watch" and input.state ~= "Stun" and now >= self.nextTwitch then
 		local calm = not chasing
 		self.nextTwitch = now + (calm and 1.2 + math.random() * 2.6 or 2.5 + math.random() * 3)
 		local r = math.random()
@@ -630,7 +675,7 @@ function Body:update(input)
 	local rootRot = root.Rotation
 	local holdPoints = nil
 	if catch and cc.hold > 0.001 and catch.victimTorso then
-		holdPoints = self:holdPoints(root, catch.victimTorso, cc.pin)
+		holdPoints = self:holdPoints(root, catch.victimTorso, cc.pin, Shared.CATCHES[catch.kind].yank)
 	end
 	local ends = {}
 	for _, l in ipairs(rig.list) do
@@ -640,13 +685,24 @@ function Body:update(input)
 		local endRot = rootRot * l.endRest * CFrame.fromAxisAngle(l.curlAxis, curl)
 		local pole
 		if l.arm then
-			pole = Vector3.new(l.side * lerp(0.9, 1.5, squeeze), lerp(lerp(0.8, 0.3, run), 0.15, squeeze), lerp(0.4, 1.0, run))
+			-- elbows hitched up high and out to the sides, like a spider's
+			pole = Vector3.new(l.side * lerp(1.3, 1.6, squeeze), lerp(lerp(1.25, 0.55, run), 0.15, squeeze), lerp(0.15, 0.9, run))
 		else
-			-- knees out like a frog when it's flattened, but not through the vent walls
+			-- knees up and out, like a frog's when it's flattened, but not through the vent walls
 			local room = clamp((self.walls[l.side] - 0.8) / 1.5, 0.3, 1)
-			pole = Vector3.new(l.side * lerp(0.35, 1.4 * room, squeeze), lerp(0.1, 0.6 - 0.4 * room, squeeze), lerp(-1, -0.4, squeeze))
+			pole = Vector3.new(l.side * lerp(0.8, 1.4 * room, squeeze), lerp(0.6, 0.6 - 0.4 * room, squeeze), lerp(-0.7, -0.4, squeeze))
 		end
 
+		if stun > 0.01 and l.arm and self.vHeadCF then
+			-- claws dragged over its eyes, rubbing, scratching at its own face
+			local s = input.stateTime or 0
+			local face = self.vHeadCF.Position
+			local rub = Vector3.new(noise(s * 6, l.side * 3.1), noise(s * 7, l.side * 5.3) * 0.6, noise(s * 5, l.side * 7.7)) * 0.35
+			local claw = face + root.RightVector * (l.side * 0.42) + root.LookVector * 0.25 - UP * 0.1 + rub
+			target = target:Lerp(claw, Shared.smooth(stun))
+			endRot = nil
+			pole = Vector3.new(l.side * 1.3, 0.4, 0.5)
+		end
 		if catch and l.arm then
 			if holdPoints and cc.hold > 0.001 then
 				local grip = holdPoints[l.key]
@@ -686,13 +742,13 @@ function Body:update(input)
 	--------------------------------------------------
 	-- head and jaw
 	--------------------------------------------------
-	local headPos = self.headCF and self.headCF.Position or torso * rig.torsoRest:Inverse() * rig.neckPivot
+	local headPos = self.vHeadCF and self.vHeadCF.Position or torso * rig.torsoRest:Inverse() * rig.neckPivot
 	local lookAt = nil
 	if catch and catch.victimHead then
 		lookAt = catch.victimHead.Position
 	elseif doorState then
 		lookAt = input.door.point
-	elseif input.target and (chasing or input.state == "Spot") then
+	elseif input.target and (chasing or input.state == "Spot" or input.state == "Watch" or input.stare) then
 		lookAt = input.target
 	end
 	local yawGoal, pitchGoal
@@ -705,7 +761,9 @@ function Body:update(input)
 		pitchGoal = noise(t * 0.29, 8.3) * 0.45 + 0.2
 	end
 	yawGoal = clamp(yawGoal, -1.7, 1.7)
-	pitchGoal = clamp(pitchGoal, -0.35, 1.0)
+	-- (upside down, "up" in its floor version is down at you: it can crane further)
+	-- (and with you pinned under it, it can stare straight down into your face)
+	pitchGoal = clamp(pitchGoal, catch and -0.85 or -0.35, input.space and 1.45 or 1.0)
 
 	local rollGoal = 0
 	if now < self.tiltUntil then
@@ -724,8 +782,31 @@ function Body:update(input)
 		shake = cc.shake
 	elseif input.state == "Spot" then
 		shake = (input.stateTime or 0) < 0.6 and 0.7 or 0
+	elseif input.state == "Watch" then
+		shake = 0.12
 	elseif doorState then
 		shake = input.state == "DoorRage" and (doorT < 1.6 and 0.9 or 0) or (sinceSlam < 0.4 and 0.6 or 0.15)
+	elseif stun > 0 then
+		-- head thrown back and shaking, trying to clear its eyes
+		local s = input.stateTime or 0
+		shake = s < 1.1 and 1.1 or 0.45
+		pitchGoal += 0.55 * stun
+		yawGoal += 0.7 * sin(s * 4.2) * stun
+	end
+
+	-- upside down and staring at you: the head twists round the right way
+	-- up, slowly, the neck cracking as it goes
+	local wantFlip = input.flip == true
+	if wantFlip ~= self.flipWanted then
+		self.flipWanted = wantFlip
+		emit(self, "sound", "BoneCrack", "head", 1, 0.8)
+		self.nextNeckCrack = now + 0.25
+	end
+	self.flip.goal = wantFlip and pi or 0
+	local flip = Shared.stepSpring(self.flip, dt)
+	if self.nextNeckCrack and now >= self.nextNeckCrack then
+		self.nextNeckCrack = nil
+		emit(self, "sound", "BoneCrack", "head", 0.9, 1.15)
 	end
 	self.headYaw.goal, self.headPitch.goal, self.headRoll.goal = yawGoal, pitchGoal, rollGoal
 	local hy = Shared.stepSpring(self.headYaw, dt) + noise(t * 23, 3.3) * 0.22 * shake
@@ -738,6 +819,11 @@ function Body:update(input)
 		jawGoal = cc.jaw
 	elseif input.state == "Spot" then
 		jawGoal = (input.stateTime or 0) < 0.65 and 1.15 or 0.5
+	elseif input.state == "Watch" then
+		-- the jaw creeps open while it stares
+		jawGoal = 0.15 + 0.95 * Shared.smooth((input.stateTime or 0) / 1.1)
+	elseif stun > 0 then
+		jawGoal = (input.stateTime or 0) < 0.9 and 1.3 or 0.55        -- shrieking, then gasping
 	elseif doorState then
 		jawGoal = input.state == "DoorRage" and (doorT < 1.6 and 1.3 or 0.4)
 			or input.state == "DoorBash" and 1.1
@@ -753,6 +839,7 @@ function Body:update(input)
 	self.jaw.goal = jawGoal
 	local jaw = math.max(Shared.stepSpring(self.jaw, dt), 0) + noise(t * 30, 2.2) * 0.12 * shake
 
+	hr += flip
 	local headRot = Shared.headRotation(rig, rootRot, hy, hp, hr)
 	local head, jawCF = Shared.solveHead(rig, torso, torsoInv, headRot, JAW_OPEN * jaw, out)
 
@@ -785,17 +872,41 @@ function Body:update(input)
 		headRot = Shared.headRotation(rig, rootRot, hy, hp, hr)
 		head, jawCF = Shared.solveHead(rig, torso, torsoInv, headRot, JAW_OPEN * jaw, out)
 	end
-	self.headCF = head
-	self.mouth = jawCF and head.Position:Lerp(jawCF.Position, 0.5) or head.Position
+	self.vHeadCF = head
+	local mouth = jawCF and head.Position:Lerp(jawCF.Position, 0.5) or head.Position
+
+	-- on a wall / the ceiling: turn the whole body from its floor version onto
+	-- the surface (only the root joint changes; every other joint is relative)
+	local space = input.space
+	if space then
+		local actual = input.actualRoot or root
+		out[rig.root] = rig.rootC0inv * actual:Inverse() * space * torso * rig.root.C1
+		self.headCF = space * head
+		self.mouth = space * mouth
+		self.torsoCF = space * torso
+	else
+		self.headCF = head
+		self.mouth = mouth
+	end
 	return out, self.events
 end
 
 -- where its hands go on a caught body: gripping your sides, or pressing down on top
-function Body:holdPoints(root, victimTorso, pin)
+function Body:holdPoints(root, victimTorso, pin, ankles)
 	local points = {}
 	local right = root.RightVector
 	local fwd = root.LookVector
 	local centre = victimTorso.Position
+	if ankles then
+		-- a hand clamped round each of your ankles
+		local feet = { victimTorso * Vector3.new(0.5, -2.75, 0), victimTorso * Vector3.new(-0.5, -2.75, 0) }
+		for _, key in ipairs({ "RA", "LA" }) do
+			local side = key == "RA" and 1 or -1
+			local a, b = feet[1], feet[2]
+			points[key] = ((a - root.Position):Dot(right) * side > (b - root.Position):Dot(right) * side) and a or b
+		end
+		return points
+	end
 	-- the side of your torso nearest each of its hands
 	local sides = {
 		victimTorso * Vector3.new(1.15, 0.2, 0),
