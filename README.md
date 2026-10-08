@@ -126,3 +126,13 @@ How the breaker works:
 - If there's no breaker in the map, the power comes on by itself, like before.
 
 The test command `lever` (on the Power folder's TestCommand) throws the breaker. If the swing goes the wrong way, set a `SwingAngle` attribute (in degrees) on `LEVER LIGHTS`.
+
+## Stamina
+
+Stamina lives in ThirdPersonHorrorCamera.
+- **Using it:** sprinting drains it (about 7 s from full, scaled by the role's `StaminaMultiplier`); adrenaline doesn't drain it.
+- **Getting it back:** it refills after you stop.
+- **Running out:** you drop to walking speed and can't sprint again until it's back to 35. A heartbeat plays, the screen edges pulse with each beat, and small white flashes flicker at the edges.
+- **For a stamina bar:** read the character attributes `Stamina` (0-100), `MaxStamina` and `Exhausted`.
+
+The camera script now only hands walk/sprint/crawl to BodyMotion when BodyMotion is in StarterPlayerScripts. Without it, the camera plays its own animations again.

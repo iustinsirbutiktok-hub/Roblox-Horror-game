@@ -174,6 +174,11 @@ local isSprinting = false
 local isCrouching = false
 local isCrawling = false
 
+-- stamina (see STAMINA further down)
+local STAMINA_MAX = 100
+local stamina = STAMINA_MAX
+local exhausted = false          -- ran it dry: no sprinting until you've got your breath back
+
 local yaw = 0
 local pitch = 0
 
@@ -300,17 +305,25 @@ end
 
 local tracks = {}
 
--- walking, sprinting and crawling are done by BodyMotion now (worked out
--- live, not played from these); crouching still uses its animations
+-- with BodyMotion in StarterPlayerScripts, walking, sprinting and crawling
+-- are done by it (worked out live, not played from these); without it,
+-- these animations play like they always did. Crouching always uses its own.
 local PROCEDURAL = { Walk = true, Sprint = true, Crawl = true, CrawlStart = true }
+
+local function bodyMotionOn()
+	local scripts = player:FindFirstChild("PlayerScripts")
+	local bodyMotion = scripts and scripts:FindFirstChild("BodyMotion")
+	return bodyMotion ~= nil and bodyMotion.Enabled
+end
 
 local function loadTracks()
 
 	table.clear(tracks)
+	local skip = bodyMotionOn()
 
 	for stateName, assetId in pairs(ANIMATION_IDS) do
 
-		if PROCEDURAL[stateName] then
+		if skip and PROCEDURAL[stateName] then
 			continue
 		end
 
@@ -640,6 +653,9 @@ local function onCharacterAdded(newCharacter)
 
 	currentState = "Walk"
 
+	stamina = STAMINA_MAX
+	exhausted = false
+
 	wasClimbing = false
 	climbCamActive = false
 	blendTimeLeft = 0
@@ -800,7 +816,7 @@ local function updateState()
 		currentState = "Crouch"
 		isSprinting = false
 
-	elseif isSprinting and isMovingForward() then
+	elseif isSprinting and isMovingForward() and not exhausted then
 
 		currentState = "Sprint"
 
@@ -1698,6 +1714,237 @@ RunService.Heartbeat:Connect(function(dt)
 	hrp.CFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, newYaw, 0)
 end)
 
+--------------------------------------------------
+-- STAMINA
+--------------------------------------------------
+-- Sprinting burns it; anything else gets it back. Run it dry and you're
+-- spent: you drop back to a walk and can't sprint again until you've got your
+-- breath back (RECOVER_AT). Until then your heart thuds in your ears, your
+-- sight tightens on every beat, and small white sparks flicker at the edges
+-- of your vision, fading as you recover.
+--   * your stamina bar can read the character's "Stamina" (0-100) and
+--     "Exhausted" attributes
+--   * roles: the "StaminaMultiplier" attribute makes it last longer
+--   * adrenaline: you don't tire while it lasts
+
+local STAMINA_DRAIN = 14          -- per second of sprinting (about 7 seconds from full)
+local STAMINA_REGEN = 11          -- per second walking, once you've stopped sprinting
+local STAMINA_REGEN_STILL = 17    -- standing still you get it back faster
+local STAMINA_REGEN_DELAY = 0.9   -- seconds after sprinting before it starts coming back
+local RECOVER_AT = 35             -- spent: no sprinting until it's back up to this
+
+local HEARTBEAT_SOUND = "rbxassetid://3012160995"
+local GASP_SOUND = "rbxassetid://9114555699"
+
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+
+local lastSprintAt = 0
+local strain = 0                 -- 0 fine .. 1 just ran dry (eases in and out)
+local staminaPulse = 0           -- 0..1 on each heartbeat (the camera's FOV uses it)
+local shownStamina, shownExhausted = nil, nil
+
+local staminaGui = Instance.new("ScreenGui")
+staminaGui.Name = "StaminaFX"
+staminaGui.ResetOnSpawn = false
+staminaGui.IgnoreGuiInset = true
+staminaGui.DisplayOrder = 3
+staminaGui.Parent = player:WaitForChild("PlayerGui")
+
+-- the edges: darkening with each beat, and a faint white glow under the sparks
+local function edgeSet(color)
+	local list = {}
+	for _, spec in ipairs({
+		{ UDim2.fromScale(0, 0), UDim2.fromScale(1, 0.22), 90 },
+		{ UDim2.fromScale(0, 0.78), UDim2.fromScale(1, 0.22), -90 },
+		{ UDim2.fromScale(0, 0), UDim2.fromScale(0.16, 1), 0 },
+		{ UDim2.fromScale(0.84, 0), UDim2.fromScale(0.16, 1), 180 },
+	}) do
+		local f = Instance.new("Frame")
+		f.Position = spec[1]
+		f.Size = spec[2]
+		f.BackgroundColor3 = color
+		f.BackgroundTransparency = 1
+		f.BorderSizePixel = 0
+		f.Parent = staminaGui
+		local g = Instance.new("UIGradient")
+		g.Rotation = spec[3]
+		g.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) })
+		g.Parent = f
+		table.insert(list, f)
+	end
+	return list
+end
+local darkEdges = edgeSet(Color3.fromRGB(6, 4, 4))
+local whiteEdges = edgeSet(Color3.fromRGB(255, 255, 255))
+
+-- one little white flash somewhere near the edge of your sight
+local staminaRng = Random.new()
+local function spark(strength)
+	local side = staminaRng:NextInteger(1, 4)
+	local along = staminaRng:NextNumber(0.05, 0.95)
+	local depth = staminaRng:NextNumber(0.005, 0.07)
+	local x, y
+	if side == 1 then
+		x, y = along, depth
+	elseif side == 2 then
+		x, y = along, 1 - depth
+	elseif side == 3 then
+		x, y = depth * 0.7, along
+	else
+		x, y = 1 - depth * 0.7, along
+	end
+	local f = Instance.new("Frame")
+	f.AnchorPoint = Vector2.new(0.5, 0.5)
+	f.Position = UDim2.fromScale(x, y)
+	f.BorderSizePixel = 0
+	f.BackgroundColor3 = Color3.new(1, 1, 1)
+	f.BackgroundTransparency = staminaRng:NextNumber(0.05, 0.35)
+	if staminaRng:NextNumber() < 0.4 then
+		-- a streak, pointing in towards the middle
+		f.Size = UDim2.fromOffset(2, staminaRng:NextInteger(8, 20))
+		f.Rotation = math.deg(math.atan2(0.5 - y, 0.5 - x)) + 90
+	else
+		local size = staminaRng:NextInteger(2, 6)
+		f.Size = UDim2.fromOffset(size, size)
+		local round = Instance.new("UICorner")
+		round.CornerRadius = UDim.new(1, 0)
+		round.Parent = f
+	end
+	local glow = Instance.new("UIStroke")
+	glow.Color = Color3.new(1, 1, 1)
+	glow.Thickness = 1
+	glow.Transparency = 0.6
+	glow.Parent = f
+	f.Parent = staminaGui
+	local life = staminaRng:NextNumber(0.12, 0.35) * (0.7 + 0.5 * strength)
+	TweenService:Create(f, TweenInfo.new(life, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+		{ BackgroundTransparency = 1, Size = f.Size + UDim2.fromOffset(2, 2) }):Play()
+	TweenService:Create(glow, TweenInfo.new(life), { Transparency = 1 }):Play()
+	task.delay(life + 0.05, function()
+		f:Destroy()
+	end)
+end
+
+local heartbeatSound = Instance.new("Sound")
+heartbeatSound.Name = "ExhaustedHeartbeat"
+heartbeatSound.SoundId = HEARTBEAT_SOUND
+heartbeatSound.Looped = true
+heartbeatSound.Volume = 0
+heartbeatSound.Parent = SoundService
+
+local loudPeak = 1
+local wasBeat = false
+local lastBeatAt = 0
+local nextSparkAt = 0
+
+local function runOutOfBreath()
+	exhausted = true
+	isSprinting = false
+	updateState()
+	local gasp = Instance.new("Sound")
+	gasp.SoundId = GASP_SOUND
+	gasp.Volume = 0.45
+	gasp.PlaybackSpeed = 0.85
+	gasp.Parent = SoundService
+	gasp:Play()
+	gasp.Ended:Connect(function()
+		gasp:Destroy()
+	end)
+	addTrauma(0.12)
+end
+
+RunService.Heartbeat:Connect(function(dt)
+	if not character or not hrp or not hrp.Parent then
+		return
+	end
+	local now = os.clock()
+	local velocity = hrp.AssemblyLinearVelocity
+	local moving = Vector3.new(velocity.X, 0, velocity.Z).Magnitude > 2
+
+	-- burn it sprinting, get it back otherwise
+	if currentState == "Sprint" and moving and not isExternallyControlled() then
+		lastSprintAt = now
+		if not hasAdrenaline() then
+			local lasts = math.max(character:GetAttribute("StaminaMultiplier") or 1, 0.1)
+			stamina = math.max(stamina - STAMINA_DRAIN / lasts * dt, 0)
+		end
+		if stamina <= 0 and not exhausted then
+			runOutOfBreath()
+		end
+	elseif now - lastSprintAt > STAMINA_REGEN_DELAY then
+		stamina = math.min(stamina + (moving and STAMINA_REGEN or STAMINA_REGEN_STILL) * dt, STAMINA_MAX)
+	end
+
+	-- got your breath back
+	if exhausted and stamina >= RECOVER_AT then
+		exhausted = false
+		-- (still holding Shift and W: off you go again)
+		if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) and isMovingForward()
+			and not isCrouching and not isCrawling and not isExternallyControlled() then
+			isSprinting = true
+			updateState()
+		end
+	end
+
+	-- for the stamina bar
+	local rounded = math.floor(stamina + 0.5)
+	if rounded ~= shownStamina then
+		shownStamina = rounded
+		character:SetAttribute("Stamina", rounded)
+		character:SetAttribute("MaxStamina", STAMINA_MAX)
+	end
+	if exhausted ~= shownExhausted then
+		shownExhausted = exhausted
+		character:SetAttribute("Exhausted", exhausted)
+	end
+end)
+
+RunService.RenderStepped:Connect(function(dt)
+	local now = os.clock()
+	-- how hard it's hitting you: all at once when you run dry, easing off as
+	-- your breath comes back
+	local want = exhausted and math.clamp(1 - stamina / RECOVER_AT * 0.75, 0.25, 1) or 0
+	strain += (want - strain) * math.min(dt * (want > strain and 6 or 0.9), 1)
+
+	-- the heartbeat: louder and faster the worse it is; the screen follows
+	-- the sound itself, so every thump lands with what you see
+	if strain > 0.01 then
+		if not heartbeatSound.IsPlaying then
+			heartbeatSound:Play()
+		end
+		heartbeatSound.Volume = 0.55 * strain
+		heartbeatSound.PlaybackSpeed = 1 + 0.4 * strain
+	elseif heartbeatSound.IsPlaying then
+		heartbeatSound:Stop()
+	end
+	local loud = heartbeatSound.IsPlaying and heartbeatSound.PlaybackLoudness or 0
+	loudPeak = math.max(loudPeak * (1 - dt * 0.3), loud, 1)
+	local beat = math.clamp((loud / loudPeak - 0.25) / 0.6, 0, 1) * strain
+	staminaPulse += (beat - staminaPulse) * math.min(dt * 25, 1)
+
+	for _, e in ipairs(darkEdges) do
+		e.BackgroundTransparency = 1 - (0.25 * strain + 0.4 * staminaPulse)
+	end
+	for _, e in ipairs(whiteEdges) do
+		e.BackgroundTransparency = 1 - 0.1 * staminaPulse
+	end
+
+	-- small white flashes at the edges: a burst on each thump, a few between
+	local isBeat = beat > 0.5
+	if isBeat and not wasBeat and now - lastBeatAt > 0.15 then
+		lastBeatAt = now
+		for _ = 1, math.floor(2 + 4 * strain) do
+			spark(strain)
+		end
+	end
+	wasBeat = isBeat
+	if strain > 0.05 and now >= nextSparkAt then
+		nextSparkAt = now + staminaRng:NextNumber(0.08, 0.35) / strain
+		spark(strain * 0.6)
+	end
+end)
+
 RunService:BindToRenderStep("HorrorFirstPersonCamera", Enum.RenderPriority.Camera.Value + 1, function(dt)
 	if not hrp or not hrp.Parent then
 		return
@@ -1754,6 +2001,8 @@ RunService:BindToRenderStep("HorrorFirstPersonCamera", Enum.RenderPriority.Camer
 	if hasAdrenaline() then
 		targetFOV += ADRENALINE_FOV_BONUS
 	end
+	-- out of breath: your sight tightens a little with every heartbeat
+	targetFOV -= staminaPulse * 3
 	camera.FieldOfView += (targetFOV - camera.FieldOfView) * math.min(FOV_LERP_SPEED * dt, 1)
 
 	--------------------------------------------------
