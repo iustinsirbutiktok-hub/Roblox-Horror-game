@@ -245,22 +245,145 @@ local function eye()
 	return root.Position + root.CFrame.LookVector * 2.4 + UP * 0.5
 end
 
-local function canSee(character, hrp)
-	local from = eye()
-	local targetPoint = (character:FindFirstChild("Head") or hrp).Position
-	local offset = targetPoint - from
-	local distance = offset.Magnitude
-	if distance > (surface == "Ceiling" and Config.CEILING_SIGHT or Config.SIGHT_RANGE) then
-		return false
+--------------------------------------------------
+-- WHAT IT CAN SEE
+--------------------------------------------------
+-- Eyes, not radar:
+--   * how far depends on the light: 40 studs in the dark, 70 once the power
+--     is back on; your camcorder light on: half as far again
+--   * crouching it has to be 35% closer to spot you, crawling 55% closer
+--   * only what's in front of it (a 120 degree cone); behind it, it only
+--     notices you if you're right on top of it
+--   * any part of you counts: head, chest or legs poking out from cover
+--   * close up it's instant; far off it needs to keep you in sight a moment
+--     (up to half a second at the edge of its range) - a glimpse can slip by
+--   * once it's after you it keeps its eyes on you: no cone, no delay
+
+local SIGHT = {
+	DARK = 40,              -- studs, power out
+	LIT = 70,               -- studs, lights back on
+	LIGHT_BONUS = 1.5,      -- your camcorder light on: this much further
+	CROUCH = 0.65,          -- crouching: its range shrinks to this
+	CRAWL = 0.45,           -- crawling
+	CONE = 120,             -- degrees in front of it
+	CHASE_RANGE = 1.3,      -- the one it's chasing: it can follow you this much further
+	INSTANT_WITHIN = 0.35,  -- inside this share of its range it spots you at once
+	LONGEST_LOOK = 0.5,     -- seconds it needs at the very edge of its range
+}
+
+-- everyone's stance, for the above (the camera script reports it; BodyMotionServer does the same)
+local stanceRelay = ReplicatedStorage:FindFirstChild("BodyMotion") or Instance.new("RemoteEvent")
+stanceRelay.Name = "BodyMotion"
+stanceRelay.Parent = ReplicatedStorage
+local STANCES = { Walk = true, Sprint = true, Crouch = true, Crawl = true }
+stanceRelay.OnServerEvent:Connect(function(player, stance)
+	if player.Character and type(stance) == "string" and STANCES[stance] then
+		player.Character:SetAttribute("Stance", stance)
 	end
-	-- it sees best straight ahead; behind it, only up close
-	local facing = root.CFrame.LookVector:Dot(Shared.flat(offset))
-	if facing < -0.35 and distance > 22 then
-		return false
-	end
-	local hit = workspace:Raycast(from, offset, rayParams({ monster }))
-	return hit == nil or hit.Instance:IsDescendantOf(character)
+end)
+
+local function powerOn()
+	local power = ReplicatedStorage:FindFirstChild("Power")
+	return power ~= nil and power:GetAttribute("On") == true
 end
+
+-- your camcorder's light, if it's switched on
+local function camcorderLightOn(player, character)
+	for _, owner in ipairs({ character, player }) do
+		for _, name in ipairs({ "CamcorderLight", "CamcorderLightOn", "LightOn" }) do
+			if owner:GetAttribute(name) == true then
+				return true
+			end
+		end
+	end
+	for _, light in ipairs(character:GetDescendants()) do
+		if light:IsA("Light") and light.Enabled and light.Brightness > 0 then
+			local node = light
+			while node and node ~= character do
+				local name = node.Name:lower()
+				if name:find("camcorder") or name:find("camera") then
+					return true
+				end
+				node = node.Parent
+			end
+		end
+	end
+	return false
+end
+
+-- how far it can see this player right now
+local function sightRange(player, character)
+	local range = powerOn() and SIGHT.LIT or SIGHT.DARK
+	if surface == "Ceiling" and Config.CEILING_SIGHT then
+		range = math.min(range, Config.CEILING_SIGHT)
+	end
+	if camcorderLightOn(player, character) then
+		range *= SIGHT.LIGHT_BONUS
+	end
+	local stance = character:GetAttribute("Stance")
+	if stance == "Crawl" then
+		range *= SIGHT.CRAWL
+	elseif stance == "Crouch" then
+		range *= SIGHT.CROUCH
+	end
+	return range
+end
+
+-- a straight look from its eyes to a point: true if nothing solid is in the
+-- way (it sees through glass and invisible walls)
+local function clearLine(from, to, character)
+	local ignore = { monster }
+	for _ = 1, 4 do
+		local hit = workspace:Raycast(from, to - from, rayParams(ignore))
+		if not hit or hit.Instance:IsDescendantOf(character) then
+			return true
+		end
+		if hit.Instance.Transparency < 0.6 then
+			return false
+		end
+		table.insert(ignore, hit.Instance)
+	end
+	return false
+end
+
+-- can it see any part of you? (chasing = you're the one it's after)
+local function canSee(player, character, hrp, chasing)
+	local from = eye()
+	local range = sightRange(player, character) * (chasing and SIGHT.CHASE_RANGE or 1)
+	local offset = hrp.Position - from
+	if offset.Magnitude > range + 3 then
+		return false, 0
+	end
+	-- only what's in front of it (while it hunts you down, it's facing you anyway)
+	if not chasing then
+		local look = Shared.flat(root.CFrame.LookVector)
+		local dir = Shared.flat(offset)
+		if dir.Magnitude > 0.01 and look:Dot(dir.Unit) < math.cos(math.rad(SIGHT.CONE / 2)) then
+			return false, 0
+		end
+	end
+	local points = {}
+	for _, name in ipairs({ "Head", "Torso", "UpperTorso", "Left Leg", "Right Leg", "LeftLowerLeg", "RightLowerLeg" }) do
+		local part = character:FindFirstChild(name)
+		if part and part:IsA("BasePart") then
+			table.insert(points, part.Position)
+		end
+	end
+	if #points == 0 then
+		table.insert(points, hrp.Position)
+	end
+	for _, point in ipairs(points) do
+		local distance = (point - from).Magnitude
+		if distance <= range and clearLine(from, point, character) then
+			return true, distance / range
+		end
+	end
+	return false, 0
+end
+
+local target = nil         -- the player it's after (set by the main loop further down)
+local seenFor = {}         -- player -> seconds it's had you in sight (for the far-off delay)
+local lastLook = os.clock()
 
 -- someone crawling through a duct: the metal booms under every move, and it
 -- hears it (it doesn't need to see you to come straight in after you)
@@ -276,7 +399,10 @@ local function inDuct(hrp)
 end
 
 local function findTarget()
-	if os.clock() < ignoreUntil then
+	local now = os.clock()
+	local dt = math.min(now - lastLook, 0.5)
+	lastLook = now
+	if now < ignoreUntil then
 		return nil
 	end
 	local best, bestDistance = nil, math.huge
@@ -285,18 +411,39 @@ local function findTarget()
 		if character then
 			local offset = hrp.Position - root.Position
 			local distance = offset.Magnitude
-			local close = distance <= Config.NOTICE_RANGE and math.abs(offset.Y) < 8
+			-- right on top of it, it notices you without looking (quieter crouched or crawling)
+			local stance = character:GetAttribute("Stance")
+			local notice = Config.NOTICE_RANGE * (stance == "Crawl" and 0.5 or stance == "Crouch" and 0.7 or 1)
+			local close = distance <= notice and math.abs(offset.Y) < 8
 			if surface == "Ceiling" then
 				-- up there: whoever passes underneath
 				local flatDistance = Vector3.new(offset.X, 0, offset.Z).Magnitude
 				local standY = (ceilingFloorY or (root.Position.Y - 10)) + 3
-				close = flatDistance <= Config.NOTICE_RANGE and math.abs(hrp.Position.Y - standY) < 6
+				close = flatDistance <= notice and math.abs(hrp.Position.Y - standY) < 6
 				distance = flatDistance
 			end
 			local heard = surface ~= "Ceiling" and distance < DUCT_HEARING and inDuct(hrp)
-			if distance < bestDistance and (close or heard or canSee(character, hrp)) then
+
+			local chasingThem = target == player
+			local visible, howFar = canSee(player, character, hrp, chasingThem)
+			local spotted = false
+			if visible then
+				-- far off it takes a moment to be sure; close up it's instant
+				local need = 0
+				if not chasingThem then
+					need = math.clamp((howFar - SIGHT.INSTANT_WITHIN) / (1 - SIGHT.INSTANT_WITHIN), 0, 1) * SIGHT.LONGEST_LOOK
+				end
+				seenFor[player] = (seenFor[player] or 0) + dt
+				spotted = seenFor[player] >= need
+			else
+				seenFor[player] = math.max((seenFor[player] or 0) - dt * 1.5, 0)
+			end
+
+			if distance < bestDistance and (close or heard or spotted) then
 				best, bestDistance = player, distance
 			end
+		else
+			seenFor[player] = nil
 		end
 	end
 	return best
@@ -612,7 +759,7 @@ end
 -- MAIN LOOP
 --------------------------------------------------
 
-local target = nil
+target = nil
 local lastSeenPosition = nil
 local lastSeenTime = 0
 local burstUntil = 0
@@ -672,20 +819,25 @@ local function randomWanderPoint()
 end
 
 local function spot(player)
-	-- freezes, snaps its head round at you and shrieks, then goes
-	busy = true
+	-- snaps its head round at you and shrieks - already lunging at you
 	waypoints = {}
-	humanoid:MoveTo(root.Position)
 	local _, hrp = alive(player)
 	if hrp then
 		face(hrp.Position)
+		lastSeenPosition = hrp.Position
+		humanoid.WalkSpeed = Config.BURST_SPEED
+		humanoid:MoveTo(hrp.Position)
 	end
 	monster:SetAttribute("TargetId", player.UserId)
+	monster:SetAttribute("Chasing", true)
 	setState("Spot")
-	task.wait(Config.SPOT_TIME)
-	setState("Move")
-	burstUntil = os.clock() + Config.BURST_TIME
-	busy = false
+	local spottedAt = monster:GetAttribute("StateStart")
+	task.delay(Config.SPOT_TIME, function()
+		if monster:GetAttribute("State") == "Spot" and monster:GetAttribute("StateStart") == spottedAt then
+			setState("Move")
+		end
+	end)
+	burstUntil = os.clock() + Config.BURST_TIME + 0.3
 end
 
 --------------------------------------------------

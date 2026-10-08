@@ -173,6 +173,7 @@ local ADRENALINE_FOV_BONUS = 6
 local isSprinting = false
 local isCrouching = false
 local isCrawling = false
+local sentStance = nil           -- last stance told to the server
 
 -- stamina (see STAMINA further down)
 local STAMINA_MAX = 100
@@ -245,9 +246,15 @@ end
 local hrp = character:WaitForChild("HumanoidRootPart")
 local animator = humanoid:WaitForChild("Animator")
 
+-- no jumping in this game (this also hides the jump button on phones)
+local function noJumping(hum)
+	hum.UseJumpPower = true
+	hum.JumpPower = 0
+	hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+end
+
 humanoid.AutoRotate = true
-humanoid.UseJumpPower = true
-humanoid.JumpPower = 45
+noJumping(humanoid)
 
 --------------------------------------------------
 -- HELPER: is some OTHER system currently controlling
@@ -634,8 +641,7 @@ local function onCharacterAdded(newCharacter)
 	animator = humanoid:WaitForChild("Animator")
 
 	humanoid.AutoRotate = true
-	humanoid.UseJumpPower = true
-	humanoid.JumpPower = 43
+	noJumping(humanoid)
 
 	loadTracks()
 
@@ -655,6 +661,7 @@ local function onCharacterAdded(newCharacter)
 
 	stamina = STAMINA_MAX
 	exhausted = false
+	sentStance = nil
 
 	wasClimbing = false
 	climbCamActive = false
@@ -832,6 +839,15 @@ local function updateState()
 
 	-- Other scripts (e.g. the axe) read this to match your stance.
 	character:SetAttribute("MoveState", currentState)
+
+	-- and the server hears it too: the Crawler sees you less crouched or crawling
+	if currentState ~= sentStance then
+		sentStance = currentState
+		local relay = game:GetService("ReplicatedStorage"):FindFirstChild("BodyMotion")
+		if relay then
+			relay:FireServer(currentState)
+		end
+	end
 
 	if currentState == "Sprint" then
 

@@ -136,3 +136,16 @@ Stamina lives in ThirdPersonHorrorCamera.
 - **For a stamina bar:** read the character attributes `Stamina` (0-100), `MaxStamina` and `Exhausted`.
 
 The camera script now only hands walk/sprint/crawl to BodyMotion when BodyMotion is in StarterPlayerScripts. Without it, the camera plays its own animations again.
+
+## Crawler sight and no jumping
+
+How the Crawler sees you (CrawlerAI, `SIGHT` table):
+- **Range:** 40 studs while the power is out, 70 once it's back on. Your camcorder light on: 1.5×.
+- **Stance:** crouching cuts its range to 0.65×, crawling to 0.45×. The stance comes from the camera script through the `BodyMotion` remote, which CrawlerAI creates if it's missing.
+- **Where it looks:** a 120° cone in front. Behind it, it only notices you within NOTICE_RANGE (smaller when you're crouched or crawling).
+- **Cover:** it checks head, torso and legs. Glass and invisible parts don't block its view.
+- **Reaction time:** instant within 35% of its range, building to 0.5 s at the edge of it.
+- **The one it's chasing:** no cone and no delay, and 1.3× range.
+- **Spotting you:** it shrieks while it's already lunging, with no freeze.
+
+Jumping is off everywhere: the camera sets JumpPower 0 and disables the Jumping state, which also hides the mobile jump button.
