@@ -149,3 +149,17 @@ How the Crawler sees you (CrawlerAI, `SIGHT` table):
 - **Spotting you:** it shrieks while it's already lunging, with no freeze.
 
 Jumping is off everywhere: the camera sets JumpPower 0 and disables the Jumping state, which also hides the mobile jump button.
+
+## The Medic
+
+`assets/TheMedic/TheMedic.fbx` is a rigged mesh monster:
+- **Size:** 18k triangles, about 8 studs tall.
+- **Rig:** 59 bones, including 3 joints per finger and double elbows.
+- **Texture:** one embedded 2048 texture, also in the folder as `TheMedic_texture.png`.
+
+To use it:
+1. Import it with File › Import 3D (Rig type: no humanoid).
+2. Make sure the model is named `TheMedic`.
+3. Add these scripts: `MedicPose` (ReplicatedStorage), `MedicAnimator` (StarterPlayerScripts), `MedicSetup` (ServerScriptService).
+
+The generator scripts are in `tools/medic`.
