@@ -1739,10 +1739,13 @@ local GASP_SOUND = "rbxassetid://9114555699"
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
+-- (tells the HUD's stamina bar to show this count instead of keeping its own)
+player:SetAttribute("StaminaFromCamera", true)
+
 local lastSprintAt = 0
 local strain = 0                 -- 0 fine .. 1 just ran dry (eases in and out)
 local staminaPulse = 0           -- 0..1 on each heartbeat (the camera's FOV uses it)
-local shownStamina, shownExhausted = nil, nil
+local shownStamina, shownExhausted, shownOn = nil, nil, nil
 
 local staminaGui = Instance.new("ScreenGui")
 staminaGui.Name = "StaminaFX"
@@ -1887,8 +1890,12 @@ RunService.Heartbeat:Connect(function(dt)
 		end
 	end
 
-	-- for the stamina bar
-	local rounded = math.floor(stamina + 0.5)
+	-- for the stamina bar (and again on every new character)
+	if shownOn ~= character then
+		shownOn = character
+		shownStamina, shownExhausted = nil, nil
+	end
+	local rounded = math.floor(stamina * 10 + 0.5) / 10
 	if rounded ~= shownStamina then
 		shownStamina = rounded
 		character:SetAttribute("Stamina", rounded)

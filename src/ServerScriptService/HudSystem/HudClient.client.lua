@@ -6,9 +6,11 @@
 --               to nothing (blinks for the last 3 seconds)
 --   HEALTH      dark red bar; a pale "damage chip" trails behind when you're
 --               hit; pulses under 25%; flashes DOWN when you're downed
---   STAMINA     sprinting drains it, resting brings it back; run it dry and
---               you can only walk until you catch your breath. Fades out
---               when full. (Adrenaline: no drain while it lasts.)
+--   STAMINA     shows the stamina your camera script (ThirdPersonHorrorCamera)
+--               keeps: it drains while you sprint, comes back when you stop;
+--               run it dry and it reads OUT OF BREATH until you've got your
+--               breath back. Fades out when full. (With an older camera that
+--               doesn't keep stamina, the bar keeps its own count like before.)
 --   3 SLOTS     1/2/3 or the mouse wheel to switch, Q drops one of the
 --               selected item. Each slot shows the item turning slowly.
 --
@@ -490,6 +492,14 @@ for _, f in ipairs(hpBack:GetChildren()) do
 end
 
 local adrenalineEnd, adrenalineTotal, adrenalineClock = nil, nil, nil
+local shownStamina = 1
+
+-- the camera script keeps the stamina (and stops your sprint, the heartbeat,
+-- the flashes at the edges...): the bar just shows its number
+local function cameraKeepsStamina()
+	return player:GetAttribute("StaminaFromCamera") == true
+		or (character ~= nil and character:GetAttribute("MaxStamina") ~= nil)
+end
 
 -- The medical script stamps AdrenalineUntil on your character. Work out
 -- which clock it used (whichever puts the end a sensible few seconds ahead).
@@ -523,6 +533,7 @@ local function bind(c)
 	chipHealth = shownHealth
 	stamina = STAMINA_MAX
 	exhausted = false
+	shownStamina = 1
 	adrenalineTotal = nil
 	readAdrenaline()
 	c:GetAttributeChangedSignal("AdrenalineUntil"):Connect(function()
@@ -540,9 +551,10 @@ end
 player.CharacterAdded:Connect(bind)
 
 -- being out of breath: you can't go faster than a walk
+-- (only when the bar keeps its own count: otherwise the camera handles it)
 local afterAnimation = RunService.PreSimulation or RunService.Stepped
 afterAnimation:Connect(function()
-	if exhausted and humanoid and humanoid.Parent then
+	if exhausted and humanoid and humanoid.Parent and not cameraKeepsStamina() then
 		local cap = WALK_SPEED * (character:GetAttribute("SpeedMultiplier") or 1)
 		if humanoid.WalkSpeed > cap then
 			humanoid.WalkSpeed = cap
@@ -611,27 +623,41 @@ RunService.RenderStepped:Connect(function(dt)
 	for _, n in ipairs(hpNotches) do n.BackgroundTransparency = 0.4 + 0.6 * hpAlpha end
 
 	------------------------------------------------ stamina
-	local maxStamina = STAMINA_MAX * (character:GetAttribute("StaminaMultiplier") or 1)
 	local moving = humanoid.MoveDirection.Magnitude > 0.1
-	local sprinting = character:GetAttribute("MoveState") == "Sprint" and moving and not exhausted and not downed
-	if sprinting and not onAdrenaline then
-		stamina = math.max(0, stamina - STAMINA_DRAIN * dt)
-		lastSprint = now
-		if stamina <= 0 then
-			exhausted = true
+	local sprinting
+	local staminaTarget
+	if cameraKeepsStamina() then
+		-- the camera's number
+		local max = character:GetAttribute("MaxStamina") or STAMINA_MAX
+		staminaTarget = math.clamp((character:GetAttribute("Stamina") or max) / math.max(max, 1), 0, 1)
+		exhausted = character:GetAttribute("Exhausted") == true
+		sprinting = character:GetAttribute("MoveState") == "Sprint" and moving
+	else
+		-- (an older camera: keep our own count, like before)
+		local maxStamina = STAMINA_MAX * (character:GetAttribute("StaminaMultiplier") or 1)
+		sprinting = character:GetAttribute("MoveState") == "Sprint" and moving and not exhausted and not downed
+		if sprinting and not onAdrenaline then
+			stamina = math.max(0, stamina - STAMINA_DRAIN * dt)
+			lastSprint = now
+			if stamina <= 0 then
+				exhausted = true
+			end
+		elseif onAdrenaline then
+			stamina = math.min(maxStamina, stamina + STAMINA_REGEN * 2.5 * dt)
+		elseif now - lastSprint > REGEN_DELAY then
+			stamina = math.min(maxStamina, stamina + STAMINA_REGEN * (moving and 0.6 or 1) * dt)
 		end
-	elseif onAdrenaline then
-		stamina = math.min(maxStamina, stamina + STAMINA_REGEN * 2.5 * dt)
-	elseif now - lastSprint > REGEN_DELAY then
-		stamina = math.min(maxStamina, stamina + STAMINA_REGEN * (moving and 0.6 or 1) * dt)
+		if exhausted and stamina >= RECOVER_AT then
+			exhausted = false
+		end
+		character:SetAttribute("Stamina", stamina / maxStamina * 100)
+		character:SetAttribute("Exhausted", exhausted)
+		staminaTarget = stamina / maxStamina
 	end
-	if exhausted and stamina >= RECOVER_AT then
-		exhausted = false
-	end
-	character:SetAttribute("Stamina", stamina / maxStamina * 100)
-	character:SetAttribute("Exhausted", exhausted)
+	-- (glides between the camera's whole-number steps)
+	shownStamina += (staminaTarget - shownStamina) * math.min(dt * 14, 1)
 
-	local fraction = stamina / maxStamina
+	local fraction = shownStamina
 	stFill.Size = UDim2.fromScale(fraction, 1)
 	if exhausted then
 		stFill.BackgroundColor3 = BONE:Lerp(Color3.fromRGB(190, 40, 30), (math.sin(now * 10) + 1) / 2)
