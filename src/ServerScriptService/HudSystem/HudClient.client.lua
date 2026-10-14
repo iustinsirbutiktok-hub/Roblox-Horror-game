@@ -450,6 +450,10 @@ UserInputService.InputChanged:Connect(function(input, gameProcessed)
 	if gameProcessed or input.UserInputType ~= Enum.UserInputType.MouseWheel then
 		return
 	end
+	-- (the camcorder's up to your eye: the wheel zooms it instead)
+	if player:GetAttribute("CamcorderUp") then
+		return
+	end
 	local step = input.Position.Z > 0 and -1 or 1
 	selected = (selected - 1 + step) % MAX_SLOTS + 1
 	refreshSelection(true)

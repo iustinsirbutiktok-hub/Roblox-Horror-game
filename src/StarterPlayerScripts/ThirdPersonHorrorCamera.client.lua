@@ -780,6 +780,8 @@ UserInputService.InputChanged:Connect(function(input, gameProcessed)
 
 		-- (the menu's look-sensitivity setting scales it)
 		local lookScale = player:GetAttribute("Sensitivity") or 1
+		-- (zoomed in through the camcorder: your aim slows down to match)
+		lookScale /= math.max(player:GetAttribute("CamcorderZoom") or 1, 1)
 		yaw = yaw - input.Delta.X * SENSITIVITY * lookScale
 
 		pitch = math.clamp(
