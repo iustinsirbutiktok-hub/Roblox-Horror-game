@@ -89,12 +89,14 @@ def part(bm, material, m, smooth=40, name="part"):
 
 # ---------------------------------------------------------------- shapes
 
-def box(size, at=(0, 0, 0), rot=(0, 0, 0), m="paint", bevel=0.0, smooth=30):
+def box(size, at=(0, 0, 0), rot=(0, 0, 0), m="paint", bevel=0.0, smooth=30, seg=1):
     bm = bmesh.new()
     bmesh.ops.create_cube(bm, size=1)
     bmesh.ops.scale(bm, vec=V(size), verts=bm.verts)
+    if seg > 1:
+        smooth = max(smooth, 50)
     if bevel > 0:
-        bmesh.ops.bevel(bm, geom=list(bm.edges), offset=min(bevel, min(size) * 0.45), segments=1, affect="EDGES",
+        bmesh.ops.bevel(bm, geom=list(bm.edges), offset=min(bevel, min(size) * 0.45), segments=seg, affect="EDGES",
                         profile=0.5, clamp_overlap=True)
     return part(bm, m, here(at, rot), smooth)
 
@@ -174,7 +176,7 @@ def fillet(points, bend):
     return out
 
 
-def sweep(points, r, m="chrome", n=8, bend=0.0, caps=True, closed=False, radii=None, smooth=50, up=None):
+def sweep(points, r, m="chrome", n=8, bend=0.0, caps=True, closed=False, radii=None, smooth=50, up=None, shape=None):
     """a tube along a path (points in the current place), corners rounded by `bend`"""
     pts = fillet(points, bend) if not closed else [V(p) for p in points]
     if radii is not None and bend > 0:
@@ -201,9 +203,14 @@ def sweep(points, r, m="chrome", n=8, bend=0.0, caps=True, closed=False, radii=N
         prev_t = t
         b = t.cross(nrm)
         rr = radii[i] if radii else r
-        ring = [bm.verts.new(p + (nrm * math.cos(2 * math.pi * k / n) + b * math.sin(2 * math.pi * k / n)) * rr)
-                for k in range(n)]
+        if shape:
+            ring = [bm.verts.new(p + nrm * sx + b * sy) for sx, sy in shape]
+        else:
+            ring = [bm.verts.new(p + (nrm * math.cos(2 * math.pi * k / n) + b * math.sin(2 * math.pi * k / n)) * rr)
+                    for k in range(n)]
         rings.append(ring)
+    if shape:
+        n = len(shape)
     segs = count if closed else count - 1
     for i in range(segs):
         a, c = rings[i], rings[(i + 1) % count]
@@ -213,6 +220,31 @@ def sweep(points, r, m="chrome", n=8, bend=0.0, caps=True, closed=False, radii=N
         bm.faces.new(list(reversed(rings[0])))
         bm.faces.new(rings[-1])
     return part(bm, m, STACK[-1], smooth)
+
+
+def ribbon(points, w, t, m="leather", bend=0.0, up=(0, 0, 1)):
+    """a flat strap along a path: `w` wide (across `up` turned sideways), `t` thick"""
+    shape = [(w / 2, -t / 2), (w / 2, t / 2), (-w / 2, t / 2), (-w / 2, -t / 2)]
+    return sweep(points, 0, m, bend=bend, up=up, shape=shape, smooth=35)
+
+
+def buckle(at, rot=(0, 0, 0), w=0.05, h=0.04, m="brass"):
+    """a strap buckle: a rounded frame with its prong"""
+    with place(T(at, rot)):
+        pts = [(x, y, 0) for x, y in rounded_rect(w, h, min(w, h) * 0.25, 2)]
+        sweep(pts, 0.0035, m, 6, closed=True)
+        sweep([(-w / 2, 0, 0), (w * 0.35, 0, 0.004)], 0.0025, m, 5)
+
+
+def lump(r, at=(0, 0, 0), m="fabric", seed=1, squash=(1, 1, 0.6), rough=0.25, n=10, rings=6, rot=(0, 0, 0)):
+    """a crumpled soft lump (gauze, a rag, a pillow, a sandbag)"""
+    rnd = random.Random(seed)
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=n, v_segments=rings, radius=r)
+    for v in bm.verts:
+        k = 1 + rnd.uniform(-rough, rough)
+        v.co = V((v.co.x * squash[0] * k, v.co.y * squash[1] * k, v.co.z * squash[2] * k))
+    return part(bm, m, here(at, rot), 60)
 
 
 def torus(R, r, at=(0, 0, 0), rot=(0, 0, 0), m="chrome", n=16, k=6):
@@ -286,7 +318,8 @@ def grid(w, h, nx, ny, shape, m="fabric", keep=None, thick=0.006, smooth=60, rou
 def caster(at, r=0.04, m_fork="chrome", swivel=0, stem=0.05):
     """a hospital castor: stem, swivel fork, rubber wheel (its bottom at at.z)"""
     with place(T(at, (0, 0, swivel))):
-        cyl(0.012, stem, (0, 0, 2 * r + 0.02 + stem / 2), m=m_fork, n=8)
+        if stem > 0:
+            cyl(0.012, stem, (0, 0, 2 * r + 0.02 + stem / 2), m=m_fork, n=8)
         cyl(0.022, 0.012, (0, 0, 2 * r + 0.02), m=m_fork, n=10)
         for s in (-1, 1):
             box((0.006, r * 1.3, r * 1.5), (s * 0.019, -r * 0.35, r + 0.02 - r * 0.45), m=m_fork, bevel=0.002)
@@ -513,10 +546,10 @@ def dust(g, c, amount=0.5, col="#8f897d"):
 def stains(g, c, amount=0.5, col="#8c7244", rim="#5a4224", scale=2.2, edge_dark=0.75):
     """old water / fluid stains: a tinted patch with a darker tide line round it"""
     n = g.noise(scale, 4, 0.55, dist=0.4)
-    t = 0.72 - amount * 0.18
+    t = 0.8 - amount * 0.12
     inside = g.ms(n, t, t + 0.012)
     band = g.mul(g.ms(n, t - 0.016, t), g.ms(n, t + 0.03, t + 0.006))
-    c = g.mix(c, rgb(col), g.mul(inside, 0.55))
+    c = g.mix(c, rgb(col), g.mul(inside, 0.4))
     c = g.mix(c, rgb(rim), g.mul(band, edge_dark))
     return c, inside
 
@@ -631,7 +664,7 @@ def vinyl(g, base="#1e2420", crack=0.6, wear=0.5, tear=0.3, stain=0.4, bloodied=
     b = rgb(base)
     c = g.mix(shade(b, 0.8), shade(b, 1.25), g.ms(g.noise(2.5 * sc, 5), 0.3, 0.75))
     # worn shiny-dull and faded at the edges and where people sat
-    c = g.mix(c, shade(b, 1.9), g.mul(g.ms(g.add(g.edge, g.mul(g.noise(1.5), 0.4)), 0.35, 0.8), wear * 0.6))
+    c = g.mix(c, shade(b, 1.6), g.mul(g.ms(g.add(g.edge, g.mul(g.noise(1.5), 0.4)), 0.45, 0.9), wear * 0.45))
     # crazed cracks showing the pale fabric backing
     cr = g.vor(16 * sc, "DISTANCE_TO_EDGE", vec=g.warp(0.06, 6))
     crack_m = g.mul(g.ms(cr, 0.035, 0.0), g.ms(g.noise(1.8 * sc, 4), 0.62 - crack * 0.25, 0.7 - crack * 0.25))
@@ -639,8 +672,8 @@ def vinyl(g, base="#1e2420", crack=0.6, wear=0.5, tear=0.3, stain=0.4, bloodied=
     crack_all = g.clamp(g.add(crack_m, g.mul(fine, 0.6)))
     c = g.mix(c, rgb("#6f665a"), g.mul(crack_all, 0.85))
     # torn through: yellow foam with a dark lip
-    tf = g.add(g.noise(2.2 * sc, 6, 0.65, dist=0.4), g.mul(g.edge, 0.25))
-    tt = 0.82 - tear * 0.12
+    tf = g.add(g.noise(2.2 * sc, 6, 0.65, dist=0.4), g.mul(g.edge, 0.12))
+    tt = 0.87 - tear * 0.1
     tear_m = g.ms(tf, tt, tt + 0.006)
     lip = g.sub(g.ms(tf, tt - 0.02, tt), tear_m, True)
     foam = g.ramp(g.vor(70), [(0.0, rgb("#5e4a26")), (0.25, rgb("#a68a50")), (1.0, rgb("#c4a868"))])
@@ -680,7 +713,7 @@ def fabric(g, base="#c9c3ae", stripe=None, axis="X", stripe_scale=9.0, stain=0.6
     return c, 0.95, 0.0, h
 
 
-def porcelain(g, base="#ddd9cd", craze=0.5, stain=0.6, chips=0.4, rusty=0.5, sc=1.0):
+def porcelain(g, base="#ddd9cd", craze=0.5, stain=0.6, chips=0.4, rusty=0.5, sc=1.0, bloodied=0.0):
     b = rgb(base)
     c = g.mix(shade(b, 0.9), b, g.ms(g.noise(2 * sc, 4), 0.3, 0.7))
     cz = g.mul(g.ms(g.vor(30 * sc, "DISTANCE_TO_EDGE", vec=g.warp(0.02, 8)), 0.012, 0.0),
@@ -695,6 +728,8 @@ def porcelain(g, base="#ddd9cd", craze=0.5, stain=0.6, chips=0.4, rusty=0.5, sc=
     chf = g.add(g.noise(14 * sc, 6, 0.65), g.mul(g.edge, 0.5 * chips))
     chip_m = g.ms(chf, 0.86 - chips * 0.1, 0.87 - chips * 0.1)
     c = g.mix(c, rgb("#2a2420"), chip_m)
+    if bloodied:
+        c, _ = blood(g, c, bloodied)
     c, dirt_m = grime(g, c, 0.65, "#4a3f2c")
     c, dust_m = dust(g, c, 0.4)
     rough = g.lerp(0.12, 0.7, g.clamp(g.add(g.add(st_m, dirt_m), g.add(dust_m, chip_m))))
