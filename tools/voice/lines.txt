@@ -1,0 +1,17 @@
+KP_ARRIVE_01|Welcome, tenants. Mind the step. Mind everything, really.
+KP_ARRIVE_03|Another floor. Another chance to disappoint me.
+KP_ARRIVE_04|Ah. The lights are out again. They always are, when you arrive.
+KP_ARRIVE_05|Don't look so frightened. Nothing down here is awake. ...Yet.
+KP_ARRIVE_06|You can hear it too, can't you? Good. Then you'll be quick.
+KP_ARRIVE_MALL_01|Meridian Place. Open late. Very late. Forever, in fact.
+KP_ARRIVE_MALL_02|Shoppers, your attention please. The mall is closed. You are not leaving.
+KP_ARRIVE_ASYLUM_01|Hollowmere. Visiting hours ended in nineteen sixty-one.
+KP_ARRIVE_ASYLUM_02|The patients are resting. Every last one of them. Walk quietly.
+KP_ARRIVE_STATION_01|Ashcombe Cross. The last train left in fifty-eight. Nobody got off it.
+KP_ARRIVE_STATION_02|Stand clear of the edge. The line is not as dead as it looks.
+KP_COUNT_1|There's one thing I need from you. Just one. How hard can it be?
+KP_COUNT_2|Two little jobs. Then you may come back to me.
+KP_COUNT_3|I have three tasks for you. Do them in the order I give you.
+KP_COUNT_4|Four things. Don't dawdle. It doesn't like waiting either.
+KP_COUNT_5|Five jobs tonight. I'd hurry, if I were you.
+KP_COUNT_MANY|So much to do tonight. I'll tell you as you go. Try to keep up.
