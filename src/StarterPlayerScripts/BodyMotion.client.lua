@@ -43,7 +43,7 @@ local OTHER_SYSTEMS = {
 	"IsClimbing", "IsCrawlingThrough", "IsHanging", "IsTurningValve", "IsFuelAction", "IsLeverPush",
 	"IsFuseRepair", "IsTightSqueeze", "IsAxeInspect", "IsAxeChop", "IsHiding", "IsCoopClimbing",
 	"IsFusePickup", "IsFuseInstall", "IsBearTrapped", "IsGeneratorStarting", "BeingKilled",
-	"IsBarricading", "Downed", "IsLeverPull",
+	"IsBarricading", "Downed", "IsLeverPull", "IsSedating", "InCutscene",
 }
 
 -- your own movement animations (the camera script's): not "something else"

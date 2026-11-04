@@ -740,8 +740,8 @@ def porcelain(g, base="#ddd9cd", craze=0.5, stain=0.6, chips=0.4, rusty=0.5, sc=
 def wood(g, base="#6b4a2e", dark="#3a2516", axis="Z", grain=6.0, wear=0.5, water=0.5, varnish=0.5, sc=1.0):
     b, d = rgb(base), rgb(dark)
     warp = g.vec((1, 1, 1) if axis != "Z" else (1, 1, 0.15), g._seed())
-    w = g.wave(grain * sc, "X" if axis == "Z" else "Z", "BANDS", 6.0, 3.0, vec=warp, profile="SAW")
-    c = g.ramp(w, [(0.0, d), (0.55, b), (1.0, shade(b, 1.18))])
+    w = g.wave(grain * sc, "X" if axis == "Z" else "Z", "BANDS", 6.0, 3.0, vec=warp, profile="SIN")
+    c = g.ramp(w, [(0.0, tuple(d[i] * 0.5 + b[i] * 0.5 for i in range(3))), (0.6, b), (1.0, shade(b, 1.08))])
     fine_scale = (60, 60, 4) if axis == "Z" else ((4, 60, 60) if axis == "X" else (60, 4, 60))
     fine = g.noise(1.0, 3, 0.5, vec=g.vec(fine_scale, g._seed()))
     c = g.mix(c, d, g.mul(g.ms(fine, 0.5, 0.75), 0.45))

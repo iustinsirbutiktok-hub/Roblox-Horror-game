@@ -116,23 +116,23 @@ def wall_sink():
     material("sink", "porcelain", base="#dcd9ce", craze=0.6, stain=0.75, rusty=0.85, chips=0.5)
     material("mirror", "glass", base="#3e4440", frost=0.2, dirt=0.9)
     y0 = 0.22          # the wall is at +y
-    # the bowl: an outer shell and an inner hollow
+    # the bowl: one spun shape, outside up to the rolled rim and down inside to the drain
     with place(T((0, 0, 0.82))):
-        box((0.56, 0.42, 0.04), (0, 0, 0.0), m="sink", bevel=0.015, seg=2)
-        box((0.56, 0.06, 0.2), (0, -0.19, -0.1), m="sink", bevel=0.015, seg=2)
-        box((0.06, 0.4, 0.2), (-0.25, 0, -0.1), m="sink", bevel=0.015, seg=2)
-        box((0.06, 0.4, 0.2), (0.25, 0, -0.1), m="sink", bevel=0.015, seg=2)
-        box((0.56, 0.06, 0.24), (0, 0.18, -0.08), m="sink", bevel=0.015, seg=2)
-        box((0.46, 0.32, 0.03), (0, 0, -0.19), m="sink", bevel=0.01)
-        box((0.6, 0.06, 0.12), (0, 0.18, 0.06), m="sink", bevel=0.02, seg=2)        # splashback
-        cyl(0.025, 0.01, (0, 0.02, -0.17), m="chrome", n=12)
+        lathe([(0, -0.2), (0.17, -0.2), (0.24, -0.12), (0.28, -0.02), (0.29, 0.02), (0.285, 0.04), (0.265, 0.04),
+               (0.25, 0.0), (0.21, -0.1), (0.14, -0.165), (0, -0.17)], m="sink", n=22, stretch=(1.0, 0.72))
+        box((0.6, 0.06, 0.16), (0, 0.19, 0.08), m="sink", bevel=0.02, seg=2)        # splashback
+        cyl(0.025, 0.01, (0, 0, -0.165), m="chrome", n=12)
         for s in (-1, 1):
-            with place(T((s * 0.13, 0.16, 0.13))):
+            with place(T((s * 0.13, 0.15, 0.13))):
                 cyl(0.016, 0.05, m="chrome", n=10)
                 for a in (0, 90):
                     box((0.07, 0.012, 0.012), (0, 0, 0.035), (0, 0, a + 20 * s), m="chrome", bevel=0.003)
                 sphere(0.012, (0, 0, 0.04), m="porcelain", n=8, rings=4)
                 sweep([(0, 0, 0.0), (0, -0.04, 0.01), (0, -0.08, -0.02)], 0.009, "chrome", 8, bend=0.02)
+    # two chrome legs down to the floor at the front
+    for s in (-1, 1):
+        cyl(0.016, 0.66, (s * 0.2, -0.08, 0.33), m="chrome", n=10)
+        cyl(0.024, 0.02, (s * 0.2, -0.08, 0.01), m="chrome", n=10)
     # brackets and the trap
     for s in (-1, 1):
         slab([(0, 0), (0.0, 0.3), (0.05, 0.3), (0.26, 0.04), (0.26, 0.0)], 0.02, (s * 0.2, y0, 0.58), (90, 0, -90),
@@ -224,7 +224,8 @@ def hydrotherapy_tub():
     def keep(u, v):
         x = (u - 0.5) * (W - 0.04)
         y = (v - 0.5) * (L - 0.06)
-        return (x / 0.13) ** 2 + ((y - hole_y) / 0.15) ** 2 > 1
+        in_tub = (x / (W / 2 - 0.01)) ** 2 + (y / (L / 2 - 0.01)) ** 2 < 1
+        return in_tub and (x / 0.13) ** 2 + ((y - hole_y) / 0.15) ** 2 > 1
 
     grid(W - 0.04, L - 0.06, 14, 26, cover, m="tub_canvas", keep=keep, thick=0.008)
     for i in range(10):
@@ -290,7 +291,7 @@ def ect_machine():
         material("ect_red", "paint", base="#8a1a12", chip=0.2, rust=0.1, peel=0.05)
         sphere(0.016, (0.17, 0.09, 0.03), m="ect_red", n=10, rings=5)
     # the lid, standing open behind
-    with place(T((0, 0.15, top + 0.16), (-100, 0, 0))):
+    with place(T((0, 0.15, top + 0.16), (170, 0, 0))):
         box((0.46, 0.02, 0.3), (0, 0, -0.15), m="ect_case", bevel=0.006)
         warn = label_png("ect_warn", [("DANGER", 1.0), ("HIGH VOLTAGE", 0.6), ("DO NOT EXCEED 1 SEC.", 0.45)], 360, 200,
                          bg=(214, 196, 150), fg=(120, 20, 14), font="serif")

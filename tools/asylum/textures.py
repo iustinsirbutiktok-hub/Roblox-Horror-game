@@ -13,11 +13,11 @@ OUT = os.path.abspath(sys.argv[1])
 SIZE = 1024
 SURFACES = {
     # name: (material kind, settings)
-    "WardPeelingPaint": ("paint", dict(base="#c4bea4", chip=0.3, rust=0.15, dirt=0.75, peel=0.85, under="#86a08c",
+    "WardPeelingPaint": ("paint", dict(base="#c4bea4", chip=0.3, rust=-0.4, dirt=0.75, peel=0.85, under="#86a08c",
                                       primer="#8f826c", streaks=0.9, sc=1.0, dusty=0.0)),
-    "WardFloor": ("paint", dict(base="#5c584e", chip=0.2, rust=0.1, dirt=0.95, peel=0.5, under="#3e3a32",
+    "WardFloor": ("paint", dict(base="#5c584e", chip=0.2, rust=-1.5, dirt=0.95, peel=0.5, under="#3e3a32",
                                primer="#6e6656", streaks=0.0, sc=1.6, gloss=0.2, dusty=0.6)),
-    "WardStainedPlaster": ("paint", dict(base="#958a74", chip=0.1, rust=0.05, dirt=0.9, peel=0.4, under="#6b4a3a",
+    "WardStainedPlaster": ("paint", dict(base="#958a74", chip=0.1, rust=-0.8, dirt=0.9, peel=0.4, under="#6b4a3a",
                                         primer="#7a6450", streaks=1.0, sc=0.8, dusty=0.0)),
 }
 
@@ -35,7 +35,7 @@ os.makedirs(OUT, exist_ok=True)
 for name, (kind, kw) in SURFACES.items():
     kit.reset()
     kit.TEX = SIZE
-    bpy.ops.mesh.primitive_plane_add(size=4, location=(0, 0, 1.5), rotation=(1.5708, 0, 0))   # an upright wall
+    bpy.ops.mesh.primitive_plane_add(size=4, location=(0, 0, 10.0), rotation=(1.5708, 0, 0))   # an upright wall (high up: no near-the-floor grime band)
     ob = bpy.context.active_object
     kit.material(name, kind, **kw)
     ob.data.materials.append(kit.mat(name))
