@@ -1,0 +1,16 @@
+KP_BLITZ_ASYLUM_INTRO|Lights out on the ward. The sedative wears off on the hour. ...It's nearly the hour.
+KP_BLITZ_ASYLUM_TASK|The pharmacy is open. Mostly. Find the vials. Put every patient back to sleep.
+KP_BLITZ_ASYLUM_FIRST|One down. Gently, now. They feel everything.
+KP_BLITZ_ASYLUM_HALF|Half of them sleeping. The other half are listening.
+KP_BLITZ_ASYLUM_LAST|One left. Can you hear the straps creaking? So can I.
+KP_BLITZ_ASYLUM_DONE|All quiet. Well done. Now get to the lift, before they dream about you.
+KP_BLITZ_ASYLUM_60|One minute. Their eyes are moving under the lids.
+KP_BLITZ_ASYLUM_30|Thirty seconds. I'd stop walking, and start running.
+KP_BLITZ_ASYLUM_10|Ten. Nine. ...I'll let you count the rest.
+KP_BLITZ_ASYLUM_WAKE_ONE|Oh dear. That one's awake.
+KP_BLITZ_ASYLUM_WAKE_ALL|Time's up. Visiting hours are over. For you.
+KP_BLITZ_ASYLUM_DROPPED|You dropped it. They heard that.
+KP_DEATH_01|Oh. Pity. You were so close.
+KP_DEATH_02|Stop recording. ...There. Much better.
+KP_DEATH_03|Another one for the files.
+KP_DEATH_ASYLUM|Sedated at last. Rest now, tenant.
