@@ -201,3 +201,28 @@ Your AI drives it with attributes on the model:
 
 Move the model and it walks or runs at that speed. Optional Sounds named `Snip`, `Crack` and `Shriek`
 inside the model play on those moments. The generator and its tests are in `tools/stitcher`.
+
+## The Butcher
+
+`assets/TheButcher/TheButcher.fbx` is a rigged mesh monster built from your concept sheet: a hulking,
+rotting butcher. It has greasy hair, a face with the lips rotted off, gums and teeth showing through,
+and black sunken eyes. It wears a shirt with rolled sleeves and a long blood-soaked apron with straps
+and back ties, with smeared handprints, plus work boots, and it carries a meat cleaver in its right fist.
+It has **no animation**: the rig is for you to pose and animate.
+- **Size:** about 8.2 studs tall. There are 6 meshes, about 67k triangles in all, each under Roblox's 20k limit.
+- **Rig:** 198 bones, all on one skeleton:
+  - **Body:** 5 spine, 3 neck, split thighs, shins, upper arms and forearms, metacarpals plus 3 joints in every finger.
+  - **Soft tissue:** the gut (two bones), the chest, the love handles and the fat at the back of the neck.
+  - **Face:** the jaw, eyes, upper and lower eyelids, outer and inner brows, cheeks, the nose, the ears, the mouth corners, and each half of both lips.
+  - **Hair:** 16 clumps of 3 bones.
+  - **Apron:** 7 columns of 4 bones, plus the bib, both straps, the bow and both tie ends.
+  - **Clothes:** the collar points, both rolled cuffs, the belt and the boot tops.
+  - **Cleaver:** its own bone.
+- **Textures:** colour, normal and roughness maps for each mesh, 1024 each (`TheButcher_<Mesh>_Color/Normal/Roughness.png`). The colour maps are embedded in the FBX.
+
+To use it:
+1. Import it with File › Import 3D (Rig type: no humanoid), and name the model `TheButcher`.
+2. For the full detail, add the normal and roughness maps (pores, cloth weave, crusted blood, and the wet shine on the blood). Upload the PNGs, paste their ids into `tools/ButcherSurfaceAppearance.lua`, select the model, and run the file in the command bar.
+3. To animate it, add an `AnimationController` with an `Animator` inside the model, and open it in the Animation Editor.
+
+The generator is in `tools/butcher`.
