@@ -163,3 +163,66 @@ To use it:
 3. Add these scripts: `MedicPose` (ReplicatedStorage), `MedicAnimator` (StarterPlayerScripts), `MedicSetup` (ServerScriptService).
 
 The generator scripts are in `tools/medic`.
+
+## The Stitcher
+
+`assets/TheStitcher/TheStitcher.fbx` is a rigged mesh monster: a towering, starved surgeon in a
+blood-soaked gown, built from your concept art. Its grin is carved from ear to ear with the ends sewn
+shut, and a hole torn through its chest shows the ribs. It holds a huge pair of shears in its right fist.
+- **Size:** about 8.8 studs tall. There are 4 meshes, about 50k triangles in all, each under Roblox's 20k limit.
+- **Rig:** 178 bones, all on one skeleton:
+  - **Body:** 5 spine, 4 neck, a 2-part upper arm and forearm on each side, metacarpals plus 3 joints in every finger.
+  - **Face:** the jaw, both eyes, the brows, the cheeks, the grin's corners and both lips.
+  - **Chest:** six ribs a side, each with its own bone, so the chest can heave or flare open.
+  - **Scissors:** the moving blade has its own bone.
+  - **Hanging parts:** 13 hair clumps, 8 skirt panels, the cap and gown ties, the torn flap, and the bandage tails.
+- **Textures:** one 1024 texture per mesh (`TheStitcher_Body/Head/Clothes/Scissors.png`), also embedded in the FBX.
+
+To use it:
+1. Import it with File › Import 3D (Rig type: no humanoid).
+2. Make sure the model is named `TheStitcher`.
+3. Add these scripts:
+   - `StitcherPose` (ModuleScript, ReplicatedStorage) from `src/ReplicatedStorage/StitcherPose.lua`
+   - `StitcherAnimator` (LocalScript, StarterPlayerScripts) from `src/StarterPlayerScripts/StitcherAnimator.client.lua`
+   - `StitcherSetup` (Script, ServerScriptService) from `src/ServerScriptService/StitcherSetup.server.lua`
+
+It animates itself in code, with no uploaded animations:
+- **Standing:** it hunches with its head lolling over, breathes with its bare ribs heaving, drums its long fingers, and slowly opens the scissors, then snaps them shut.
+- **Twitches:** its head cracks over to the other side, its ribs spasm open one after another, a forearm bends the wrong way, its whole body shudders.
+- **When it sees you:** its head snaps round and its eyes lock on. Close up, its head turns further than a neck should, the grin stretches and the jaw chatters. The scissors snip faster and come up, and its left hand reaches for you.
+- **Moving:** it limps when it walks. Above about 6 studs/s it breaks into a low, lurching run.
+- **Hair and cloth:** they're simulated, so they swing and lag, and its legs kick the skirt.
+
+Your AI drives it with attributes on the model:
+- **Aggro** (0 to 1): how worked up it is.
+- **Attack:** change it (for example, add 1) and it rears up, ribs flaring and jaw gaping, then lunges and snips.
+- **TargetUserId:** the player it stares at.
+- **Procedural:** untick it to play your own Animation Editor animations instead.
+
+Move the model and it walks or runs at that speed. Optional Sounds named `Snip`, `Crack` and `Shriek`
+inside the model play on those moments. The generator and its tests are in `tools/stitcher`.
+
+## The Butcher
+
+`assets/TheButcher/TheButcher.fbx` is a rigged mesh monster built from your concept sheet: a hulking,
+rotting butcher. It has greasy hair, a face with the lips rotted off, gums and teeth showing through,
+and black sunken eyes. It wears a shirt with rolled sleeves and a long blood-soaked apron with straps
+and back ties, with smeared handprints, plus work boots, and it carries a meat cleaver in its right fist.
+It has **no animation**: the rig is for you to pose and animate.
+- **Size:** about 8.2 studs tall. There are 6 meshes, about 67k triangles in all, each under Roblox's 20k limit.
+- **Rig:** 198 bones, all on one skeleton:
+  - **Body:** 5 spine, 3 neck, split thighs, shins, upper arms and forearms, metacarpals plus 3 joints in every finger.
+  - **Soft tissue:** the gut (two bones), the chest, the love handles and the fat at the back of the neck.
+  - **Face:** the jaw, eyes, upper and lower eyelids, outer and inner brows, cheeks, the nose, the ears, the mouth corners, and each half of both lips.
+  - **Hair:** 16 clumps of 3 bones.
+  - **Apron:** 7 columns of 4 bones, plus the bib, both straps, the bow and both tie ends.
+  - **Clothes:** the collar points, both rolled cuffs, the belt and the boot tops.
+  - **Cleaver:** its own bone.
+- **Textures:** colour, normal and roughness maps for each mesh, 1024 each (`TheButcher_<Mesh>_Color/Normal/Roughness.png`). The colour maps are embedded in the FBX.
+
+To use it:
+1. Import it with File › Import 3D (Rig type: no humanoid), and name the model `TheButcher`.
+2. For the full detail, add the normal and roughness maps (pores, cloth weave, crusted blood, and the wet shine on the blood). Upload the PNGs, paste their ids into `tools/ButcherSurfaceAppearance.lua`, select the model, and run the file in the command bar.
+3. To animate it, add an `AnimationController` with an `Animator` inside the model, and open it in the Animation Editor.
+
+The generator is in `tools/butcher`.
