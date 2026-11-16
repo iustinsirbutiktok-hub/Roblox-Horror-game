@@ -6,6 +6,10 @@ import kit
 from station import clean_paint
 
 
+def _clean_iron():
+    clean_paint("clean_iron", "#2a2a28", chip=0.2)
+
+
 def brass_corner(at, rot=(0, 0, 0), s=0.026):
     box((s, s, s), at, rot, m="brass", bevel=s * 0.18)
 
@@ -184,13 +188,14 @@ def station_desk():
 @piece("DeskChair", close=((1.2, -1.8, 2.4), (0, 0, 1.6), 50))
 def desk_chair():
     """a wooden swivel office chair: saddle seat, curved spindle back and arms, four legs on castors"""
+    _clean_iron()
     material("chair_wood", "wood", base="#5b3f26", dark="#2a1b10", axis="Y", grain=5.0, wear=0.6, water=0.2, varnish=0.6)
     for i in range(4):
         a = math.radians(45 + 90 * i)
         sweep([(0, 0, 0.2), (math.cos(a) * 0.3, math.sin(a) * 0.3, 0.06)], 0.022, "chair_wood", 6)
         caster((math.cos(a) * 0.3, math.sin(a) * 0.3, 0), 0.025, "brass", swivel=i * 37, stem=0.0)
-    cyl(0.03, 0.26, (0, 0, 0.3), m="iron", n=10)
-    cyl(0.05, 0.03, (0, 0, 0.44), m="iron", n=12)
+    cyl(0.03, 0.26, (0, 0, 0.3), m="clean_iron", n=10)
+    cyl(0.05, 0.03, (0, 0, 0.44), m="clean_iron", n=12)
     seat = rounded_rect(0.46, 0.44, 0.12, 3)
     slab(seat, 0.045, (0, 0, 0.47), m="chair_wood", bevel=0.012)
     # the back: a bent top rail on spindles, its ends sweeping forward into the arms
@@ -209,6 +214,7 @@ def desk_chair():
 @piece("DeparturesBoard", close=((2.6, -4.6, 6.0), (0, 0, 5.4), 45))
 def departures_board():
     """the departures board on its posts: every train cancelled, the last one still 'delayed'"""
+    _clean_iron()
     material("board_wood", "wood", base="#3f2c1c", dark="#1e140c", axis="X", wear=0.5, water=0.3, varnish=0.5)
     from PIL import Image, ImageDraw
     w, h = 1600, 1000
@@ -244,4 +250,4 @@ def departures_board():
     box((2.36, 0.12, 0.08), (0, -0.03, 3.02), m="board_wood", bevel=0.02)          # its little roof
     for x in (-1.0, 1.0):
         box((0.1, 0.1, 3.0), (x, 0.06, 1.5), m="board_wood", bevel=0.012)
-        box((0.18, 0.18, 0.06), (x, 0.06, 0.03), m="iron", bevel=0.01)
+        box((0.18, 0.18, 0.06), (x, 0.06, 0.03), m="clean_iron", bevel=0.01)

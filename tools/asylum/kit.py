@@ -757,25 +757,33 @@ def porcelain(g, base="#ddd9cd", craze=0.5, stain=0.6, chips=0.4, rusty=0.5, sc=
 
 
 def wood(g, base="#6b4a2e", dark="#3a2516", axis="Z", grain=6.0, wear=0.5, water=0.5, varnish=0.5, sc=1.0):
+    """old varnished timber: long grain with darker ring lines, a little plank-to-plank
+    variation, worn paler at the edges, thin scratches, grime and a light dust"""
     b, d = rgb(base), rgb(dark)
-    warp = g.vec((1, 1, 1) if axis != "Z" else (1, 1, 0.15), g._seed())
-    w = g.wave(grain * sc, "X" if axis == "Z" else "Z", "BANDS", 6.0, 3.0, vec=warp, profile="SIN")
-    c = g.ramp(w, [(0.0, tuple(d[i] * 0.5 + b[i] * 0.5 for i in range(3))), (0.6, b), (1.0, shade(b, 1.08))])
-    fine_scale = (60, 60, 4) if axis == "Z" else ((4, 60, 60) if axis == "X" else (60, 4, 60))
-    fine = g.noise(1.0, 3, 0.5, vec=g.vec(fine_scale, g._seed()))
-    c = g.mix(c, d, g.mul(g.ms(fine, 0.5, 0.75), 0.45))
-    # varnish rubbed off the edges, raw grey-brown wood showing
-    wm = g.mul(g.ms(g.add(g.edge, g.mul(g.noise(6), 0.15)), 0.55, 0.9), wear)
-    c = g.mix(c, rgb("#8a7458"), g.mul(wm, 0.75))
-    # water damage: black and swollen near the floor
-    wd = g.mul(g.add(g.mul(g.ms(g.z, 0.25, 0.0), 0.7), g.mul(g.ms(g.noise(1.4), 0.74, 0.86), 0.5)), water)
-    c = g.mix(c, rgb("#1e1610"), g.clamp(g.mul(wd, 0.8)))
-    scr = g.mul(g.ms(g.noise(1, 2, vec=g.vec((3, 90, 3), g._seed())), 0.68, 0.72), 0.5)
-    c = g.mix(c, rgb("#9a8466"), scr)
-    c, dirt_m = grime(g, c, 0.55)
-    c, dust_m = dust(g, c, 0.5)
-    rough = g.lerp(0.45 - varnish * 0.15, 0.9, g.clamp(g.add(wm, g.add(dirt_m, dust_m))))
-    h = g.add(g.mul(w, 0.25), g.mul(fine, 0.2))
+    along = {"X": (1, 0, 0), "Y": (0, 1, 0), "Z": (0, 0, 1)}[axis]
+    stretch = tuple(0.12 if a else 1.0 for a in along)          # everything long along the grain
+    gv = g.vec(tuple(x * grain * sc for x in stretch), g._seed())
+    bands = g.noise(1.0, 4, 0.55, vec=gv, dist=0.8)
+    c = g.mix(shade(b, 0.82), shade(b, 1.06), g.ms(bands, 0.25, 0.75))
+    # the ring lines: thin and dark
+    rings = g.wave(1.0, "X", "BANDS", 2.5, 2.0, vec=g.vec(tuple(x * grain * 3 * sc for x in stretch), g._seed()), profile="SAW")
+    c = g.mix(c, d, g.mul(g.ms(rings, 0.82, 0.97), 0.5))
+    pores = g.noise(1.0, 2, 0.5, vec=g.vec(tuple(x * 120 * sc for x in stretch), g._seed()))
+    c = g.mix(c, shade(d, 1.1), g.mul(g.ms(pores, 0.6, 0.85), 0.3))
+    # plank to plank: some boards a touch darker or redder
+    c = g.mix(c, shade(rgb("#5a3420"), sum(b) / 3 / 0.25), g.mul(g.ms(g.noise(0.8 * sc, 2), 0.4, 0.7), 0.25))
+    # varnish rubbed off the edges
+    wm = g.mul(g.ms(g.add(g.edge, g.mul(g.noise(8), 0.1)), 0.6, 0.95), wear)
+    c = g.mix(c, shade(b, 1.35), g.mul(wm, 0.45))
+    # water damage near the floor
+    wd = g.mul(g.ms(g.z, 0.22, 0.0), water)
+    c = g.mix(c, rgb("#1e1610"), g.clamp(g.mul(wd, 0.7)))
+    scr = g.mul(g.ms(g.noise(1.0, 2, 0.5, vec=g.vec((90, 90, 90), g._seed())), 0.9, 0.93), 0.35)
+    c = g.mix(c, shade(b, 1.3), scr)
+    c, dirt_m = grime(g, c, 0.5)
+    c, dust_m = dust(g, c, 0.3)
+    rough = g.lerp(0.45 - varnish * 0.15, 0.85, g.clamp(g.add(wm, g.add(dirt_m, dust_m))))
+    h = g.add(g.mul(rings, 0.15), g.mul(pores, 0.15))
     return c, rough, 0.0, h
 
 
