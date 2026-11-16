@@ -765,10 +765,10 @@ def wood(g, base="#6b4a2e", dark="#3a2516", axis="Z", grain=6.0, wear=0.5, water
     fine = g.noise(1.0, 3, 0.5, vec=g.vec(fine_scale, g._seed()))
     c = g.mix(c, d, g.mul(g.ms(fine, 0.5, 0.75), 0.45))
     # varnish rubbed off the edges, raw grey-brown wood showing
-    wm = g.mul(g.ms(g.add(g.edge, g.mul(g.noise(6), 0.3)), 0.45, 0.85), wear)
+    wm = g.mul(g.ms(g.add(g.edge, g.mul(g.noise(6), 0.15)), 0.55, 0.9), wear)
     c = g.mix(c, rgb("#8a7458"), g.mul(wm, 0.75))
     # water damage: black and swollen near the floor
-    wd = g.mul(g.add(g.ms(g.z, 0.35, 0.0), g.mul(g.ms(g.noise(1.4), 0.6, 0.75), 0.6)), water)
+    wd = g.mul(g.add(g.mul(g.ms(g.z, 0.25, 0.0), 0.7), g.mul(g.ms(g.noise(1.4), 0.74, 0.86), 0.5)), water)
     c = g.mix(c, rgb("#1e1610"), g.clamp(g.mul(wd, 0.8)))
     scr = g.mul(g.ms(g.noise(1, 2, vec=g.vec((3, 90, 3), g._seed())), 0.68, 0.72), 0.5)
     c = g.mix(c, rgb("#9a8466"), scr)

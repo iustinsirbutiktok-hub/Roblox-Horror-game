@@ -45,6 +45,11 @@ local CONFIG = {
 	CLUNK = "rbxassetid://9114213314",
 	GLASS = "rbxassetid://9119727134",
 	STRAPS = "rbxassetid://9113669127",
+	-- the patient's clothes and face (assets/AsylumPatientR6), used when there's no
+	-- ServerStorage.AsylumPatient rig: paste the uploaded image IDs
+	PATIENT_SHIRT = "",
+	PATIENT_PANTS = "",
+	PATIENT_FACE = "",
 }
 
 --------------------------------------------------
@@ -181,6 +186,34 @@ local function bedTop(bed)
 end
 
 local function dress(model)
+	if CONFIG.PATIENT_SHIRT ~= "" then
+		-- the patient's own gown and face
+		for _, d in ipairs(model:GetDescendants()) do
+			if d:IsA("Shirt") or d:IsA("Pants") or d:IsA("ShirtGraphic") or d:IsA("Accessory")
+				or (d:IsA("Decal") and d.Name == "face") then
+				d:Destroy()
+			end
+		end
+		local skin = Color3.fromRGB(180, 164, 145)
+		local colours = model:FindFirstChildOfClass("BodyColors") or Instance.new("BodyColors")
+		colours.HeadColor3, colours.TorsoColor3 = skin, skin
+		colours.LeftArmColor3, colours.RightArmColor3, colours.LeftLegColor3, colours.RightLegColor3 = skin, skin, skin, skin
+		colours.Parent = model
+		local shirt = Instance.new("Shirt")
+		shirt.ShirtTemplate = CONFIG.PATIENT_SHIRT
+		shirt.Parent = model
+		local pants = Instance.new("Pants")
+		pants.PantsTemplate = CONFIG.PATIENT_PANTS
+		pants.Parent = model
+		local head = model:FindFirstChild("Head")
+		if head and CONFIG.PATIENT_FACE ~= "" then
+			local face = Instance.new("Decal")
+			face.Name = "face"
+			face.Texture = CONFIG.PATIENT_FACE
+			face.Parent = head
+		end
+		return
+	end
 	local pale = Color3.fromRGB(188, 182, 168)
 	local gown = Color3.fromRGB(146, 158, 150)
 	for _, d in ipairs(model:GetDescendants()) do

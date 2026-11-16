@@ -6,8 +6,8 @@ import kit
 from station import clean_paint
 
 
-def brass_corner(at, rot=(0, 0, 0), s=0.035):
-    box((s, s, s), at, rot, m="brass", bevel=s * 0.3, seg=2)
+def brass_corner(at, rot=(0, 0, 0), s=0.026):
+    box((s, s, s), at, rot, m="brass", bevel=s * 0.18)
 
 
 def catch(at, rot=(0, 0, 0)):
@@ -69,7 +69,7 @@ def suitcase_small():
         for x in (-W / 2 + 0.005, W / 2 - 0.005):
             for y in (-D / 2 + 0.005, D / 2 - 0.005):
                 for z in (-H / 2 + 0.012, H / 2 - 0.012):
-                    brass_corner((x, y, z), s=0.028)
+                    brass_corner((x, y, z), s=0.022)
         for x in (-0.15, 0.15):
             catch((x, -D / 2 - 0.004, 0.02))
         handle((0, -D / 2 - 0.004, 0.0), 0.12, (90, 0, 0))
@@ -93,7 +93,7 @@ def steamer_trunk():
         for x in (-W / 2, W / 2):
             for y in (-D / 2, D / 2):
                 for z in (-H / 2 + 0.02, H / 2 - 0.02):
-                    brass_corner((x, y, z), s=0.06)
+                    brass_corner((x, y, z), s=0.045)
         box((W + 0.006, D + 0.006, 0.01), (0, 0, 0.13), m="brass", bevel=0.002)      # the lid's edge
         box((0.07, 0.012, 0.09), (0, -D / 2 - 0.012, 0.12), m="brass", bevel=0.006)
         cyl(0.008, 0.014, (0, -D / 2 - 0.02, 0.11), (90, 0, 0), m="bakelite", n=6)
@@ -104,7 +104,7 @@ def steamer_trunk():
 @piece("CarpetBag", close=((0.9, -1.3, 1.1), (0, 0, 0.6), 50))
 def carpet_bag():
     """a soft carpet bag on a hinged frame, slumped, with two leather handles"""
-    material("carpet", "fabric", base="#6a2e2a", stripe="#3c4a3a", axis="X", stripe_scale=11.0, stain=0.5, moldy=0.1)
+    material("carpet", "fabric", base="#6a2e2a", stripe="#3c4a3a", axis="X", stripe_scale=11.0, stain=0.25, moldy=0.05)
     with place(T((0, 0, 0))):
         lump(0.25, (0, 0, 0.19), m="carpet", seed=7, squash=(1.35, 0.7, 0.78), rough=0.08, n=16, rings=10)
         for y in (-0.03, 0.03):
