@@ -630,7 +630,8 @@ def paint(g, base="#d8cfb6", chip=0.5, rust=0.5, dirt=0.6, gloss=0.5, sc=1.0, pr
     bloom = g.ms(g.add(g.add(g.noise(2.0 * sc, 7, 0.62, dist=0.35), g.mul(low, 0.22)), g.mul(g.cav, 0.1)), rt, rt + 0.06)
     blister = g.ms(g.noise(24 * sc, 6, 0.72), 0.76 - rust * 0.08, 0.79 - rust * 0.08)
     blister = g.mul(blister, g.ms(g.noise(1.7 * sc, 3), 0.35, 0.6))
-    rust_m = g.clamp(g.add(g.add(bloom, g.mul(chip_m, g.ms(g.noise(6, 4), 0.25, 0.5))),
+    chip_rust = max(0.0, min(1.0, rust + 1.0))      # (clean paint: chips show bare grey steel, no rust)
+    rust_m = g.clamp(g.add(g.add(bloom, g.mul(chip_m, g.mul(g.ms(g.noise(6, 4), 0.25, 0.5), chip_rust))),
                            g.add(blister, g.mul(peel_m, g.mul(g.ms(g.noise(4, 4), 0.5, 0.68), rust)))))
     rc = rust_colour(g)
     c = g.mix(c, shade(b, 0.5), g.mul(peel_rim, 0.75))
@@ -845,13 +846,15 @@ def paper(g, base="#cdbf9b", sc=1.0):
 
 def stone(g, base="#7c7870", dark="#3b3934", sc=1.0):
     """track ballast / gravel: angular stones, dark gaps, dust and oil"""
-    v = g.warp(0.01, 30)
-    cells = g.vor(38 * sc, "F1", vec=v, out="Color")
+    v = g.warp(0.02, 12)
+    cells = g.vor(14 * sc, "F1", vec=v, out="Color")
     sep = g.node("ShaderNodeSeparateColor")
     g.link(cells, sep.inputs[0])
-    c = g.ramp(sep.outputs[0], [(0.0, rgb("#5e5a54")), (0.4, rgb(base)), (0.7, rgb("#958f84")), (1.0, rgb("#6d5f50"))])
-    edge = g.vor(38 * sc, "DISTANCE_TO_EDGE", vec=v)
-    c = g.mix(c, rgb(dark), g.mul(g.ms(edge, 0.06, 0.0), 0.85))
+    c = g.ramp(sep.outputs[0], [(0.0, rgb("#4e4b46")), (0.3, rgb(base)), (0.6, rgb("#a39d91")), (0.8, rgb("#6d6458")),
+                                (1.0, rgb("#8b857a"))])
+    c = g.mix(c, shade(rgb(base), 1.2), g.mul(g.ms(g.vor(14 * sc, "F1", vec=v), 0.35, 0.0), 0.35))   # lit stone tops
+    edge = g.vor(14 * sc, "DISTANCE_TO_EDGE", vec=v)
+    c = g.mix(c, rgb(dark), g.ms(edge, 0.09, 0.0))
     c = g.mix(c, rgb("#2a2622"), g.mul(g.ms(g.noise(2.5, 4), 0.6, 0.8), 0.6))     # oil and soot
     c, _ = dust(g, c, 0.4, "#8a8274")
     return c, 0.95, 0.0, g.sub(g.mul(edge, 3.0), 0.5)

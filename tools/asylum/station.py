@@ -109,10 +109,15 @@ def platform_bench():
     clean_paint("bench_iron", "#26372d", chip=0.35)
     material("slat", "wood", base="#6a5440", dark="#33261a", axis="X", wear=0.6, water=0.35, varnish=0.3)
     L = 1.8
-    end = [(-0.28, 0.0), (-0.2, 0.0), (-0.16, 0.38), (0.18, 0.4), (0.22, 0.0), (0.3, 0.0), (0.26, 0.42), (0.23, 0.46),
-           (0.17, 0.48), (0.27, 0.86), (0.24, 0.9), (0.2, 0.88), (0.1, 0.48), (-0.22, 0.46), (-0.26, 0.42)]
     for x in (-L / 2 + 0.12, 0.0, L / 2 - 0.12):
-        slab([(-p[0], p[1]) for p in end], 0.045, (x, 0, 0), (90, 0, 90), m="bench_iron", bevel=0.008)
+        # a cast-iron end: front leg, raked back leg running up into the back support, seat bearer, armrest
+        box((0.05, 0.05, 0.46), (x, -0.24, 0.23), (6, 0, 0), m="bench_iron", bevel=0.008)
+        sweep([(x, 0.2, 0.0), (x, 0.17, 0.45), (x, 0.27, 0.92)], 0.026, "bench_iron", 6, bend=0.12)
+        box((0.045, 0.56, 0.05), (x, -0.02, 0.43), m="bench_iron", bevel=0.008)
+        box((0.045, 0.3, 0.03), (x, -0.22, 0.03), m="bench_iron", bevel=0.006)          # the foot
+        if x != 0.0:
+            sweep([(x, 0.2, 0.66), (x, -0.1, 0.68), (x, -0.27, 0.64), (x, -0.27, 0.46)], 0.022, "bench_iron", 6,
+                  bend=0.06)
     for i in range(5):
         y = -0.24 + i * 0.1
         box((L, 0.085, 0.035), (0, y, 0.47 - 0.004 * i), m="slat", bevel=0.008)
@@ -185,15 +190,15 @@ def platform_clock():
     path = kit._save(im, "clock_face")
     material("clock_face", "paint", base="#e4e0d2", chip=0.05, rust=-2, peel=-1, dirt=0.5, streaks=0.3)
     for y in (-1, 1):
-        decal("clock_face", path, here((0.55, y * 0.066, 2.6), (90, 0, 0 if y < 0 else 180)), (0.5, 0.5))
-    with place(T((0.55, 0, 2.6))):
+        decal("clock_face", path, here((0.55, y * 0.066, 0.3), (90, 0, 0 if y < 0 else 180)), (0.5, 0.5))
+    with place(T((0.55, 0, 0.3))):
         cyl(0.29, 0.12, (0, 0, 0), (90, 0, 0), m="clock_case", n=24)
         for y in (-1, 1):
             cyl(0.255, 0.005, (0, y * 0.062, 0), (90, 0, 0), m="clock_face", n=24)
             torus(0.265, 0.015, (0, y * 0.06, 0), (90, 0, 0), m="brass", n=24, k=5)
         sphere(0.04, (0, 0, 0.33), m="clock_case", n=8, rings=5)
-    sweep([(0, 0, 2.95), (0.3, 0, 2.95), (0.55, 0, 2.9)], 0.03, "clock_case", 8, bend=0.05)
-    box((0.06, 0.2, 0.5), (0, 0, 2.85), m="clock_case", bevel=0.01)
+    sweep([(0, 0, 0.65), (0.3, 0, 0.65), (0.55, 0, 0.6)], 0.03, "clock_case", 8, bend=0.05)
+    box((0.06, 0.2, 0.5), (0, 0, 0.55), m="clock_case", bevel=0.01)
     _ = (face, clock)
 
 
