@@ -16,6 +16,8 @@ STUDS_PER_M = 3.0
 TEX = 1024
 
 PARTS = []
+GROUP = ["Main"]          # the part being built belongs to this named mesh (see group())
+GROUPS = {}               # name -> pivot point (metres) for the exported mesh's origin
 WORK = "/tmp/asylum_work"      # (build.py points this at the output folder: decal pictures go here)
 STACK = [Matrix.Identity(4)]
 EMPTIES = []
@@ -83,8 +85,24 @@ def part(bm, material, m, smooth=40, name="part"):
     bm.free()
     ob = link(bpy.data.objects.new(name, me))
     me.materials.append(mat(material))
+    ob["grp"] = GROUP[-1]
     PARTS.append(ob)
     return ob
+
+
+class group:
+    """with group("Door", pivot=(x, y, z)): parts made inside become their own mesh
+    in the FBX, its origin at the pivot (a door's hinge line)"""
+
+    def __init__(self, name, pivot=(0, 0, 0)):
+        self.name = name
+        GROUPS[name] = pivot
+
+    def __enter__(self):
+        GROUP.append(self.name)
+
+    def __exit__(self, *a):
+        GROUP.pop()
 
 
 # ---------------------------------------------------------------- shapes
@@ -825,7 +843,35 @@ def paper(g, base="#cdbf9b", sc=1.0):
     return c, 0.92, 0.0, g.mul(g.noise(50, 3), 0.2)
 
 
-KINDS = dict(paint=paint, chrome=chrome, vinyl=vinyl, fabric=fabric, porcelain=porcelain, wood=wood, rubber=rubber,
+def stone(g, base="#7c7870", dark="#3b3934", sc=1.0):
+    """track ballast / gravel: angular stones, dark gaps, dust and oil"""
+    v = g.warp(0.01, 30)
+    cells = g.vor(38 * sc, "F1", vec=v, out="Color")
+    sep = g.node("ShaderNodeSeparateColor")
+    g.link(cells, sep.inputs[0])
+    c = g.ramp(sep.outputs[0], [(0.0, rgb("#5e5a54")), (0.4, rgb(base)), (0.7, rgb("#958f84")), (1.0, rgb("#6d5f50"))])
+    edge = g.vor(38 * sc, "DISTANCE_TO_EDGE", vec=v)
+    c = g.mix(c, rgb(dark), g.mul(g.ms(edge, 0.06, 0.0), 0.85))
+    c = g.mix(c, rgb("#2a2622"), g.mul(g.ms(g.noise(2.5, 4), 0.6, 0.8), 0.6))     # oil and soot
+    c, _ = dust(g, c, 0.4, "#8a8274")
+    return c, 0.95, 0.0, g.sub(g.mul(edge, 3.0), 0.5)
+
+
+def concrete(g, base="#8d8a82", stain=0.5, sc=1.0):
+    b = rgb(base)
+    c = g.mix(shade(b, 0.85), shade(b, 1.08), g.ms(g.noise(2.0 * sc, 6, 0.65), 0.3, 0.75))
+    pores = g.ms(g.vor(120 * sc), 0.12, 0.03)
+    c = g.mix(c, shade(b, 0.6), g.mul(pores, 0.5))
+    c, _ = stains(g, c, stain, "#6e6a60", "#4e4a42", 1.5)
+    run = g.mul(g.ms(g.noise(1.0, 3, 0.5, vec=g.vec((14 * sc, 14 * sc, 0.8 * sc), g._seed())), 0.55, 0.7),
+                g.ms(g.up, 0.7, 0.2))
+    c = g.mix(c, rgb("#45413a"), g.mul(run, 0.4))
+    c, _ = grime(g, c, 0.6)
+    c, _ = dust(g, c, 0.4)
+    return c, 0.9, 0.0, g.add(g.mul(pores, -0.4), g.mul(g.noise(40, 4), 0.2))
+
+
+KINDS = dict(stone=stone, concrete=concrete, paint=paint, chrome=chrome, vinyl=vinyl, fabric=fabric, porcelain=porcelain, wood=wood, rubber=rubber,
              leather=leather, canvas=canvas, glass=glass, bakelite=bakelite, brass=brass, paper=paper)
 
 # the stock materials (pieces add their own with material(...))
@@ -925,6 +971,8 @@ def reset():
     MATS.clear()
     EMPTIES.clear()
     DECALS.clear()
+    GROUPS.clear()
+    del GROUP[1:]
     del STACK[1:]
     IMAGES["AO"] = new_image("AO", TEX, True)
     IMAGES["EDGE"] = new_image("EDGE", TEX, True)
@@ -977,6 +1025,12 @@ def finish(name, out_dir, previews=None):
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
     scene.render.bake.margin = 6
+    names = ["Main"] + [g for g in GROUPS if g != "Main"]
+    for o in PARTS:
+        a = o.data.attributes.new("grp", "INT", "FACE")
+        gi = names.index(o.get("grp", "Main"))
+        for i in range(len(o.data.polygons)):
+            a.data[i].value = gi
     for o in bpy.context.scene.objects:
         o.select_set(o in PARTS)
     bpy.context.view_layer.objects.active = PARTS[0]
@@ -1064,6 +1118,28 @@ def finish(name, out_dir, previews=None):
     scene.unit_settings.system = "METRIC"
     scene.unit_settings.scale_length = 1.0       # (Roblox: 1 Blender unit = 1 stud with FBX Units Scale)
     select_only(ob)
+    # split into the named meshes (all on the one texture), each with its origin at its pivot
+    used = sorted({v.value for v in ob.data.attributes["grp"].data})
+    if len(used) > 1:
+        for o in bpy.context.scene.objects:
+            o.select_set(False)
+        for gi in used:
+            gname = names[gi]
+            cp = ob.copy()
+            cp.data = ob.data.copy()
+            link(cp)
+            cp.name = gname if gname != "Main" else "Frame"
+            bm = bmesh.new()
+            bm.from_mesh(cp.data)
+            lay = bm.faces.layers.int.get("grp")
+            bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[lay] != gi], context="FACES")
+            piv = V(GROUPS.get(gname, (0, 0, 0))) * STUDS_PER_M
+            bmesh.ops.translate(bm, vec=-piv, verts=bm.verts)
+            bm.to_mesh(cp.data)
+            bm.free()
+            cp.location = piv
+            cp.hide_render = True
+            cp.select_set(True)
     bpy.ops.export_scene.fbx(
         filepath=os.path.join(out_dir, name + ".fbx"), use_selection=True, object_types={"MESH"},
         apply_unit_scale=True, apply_scale_options="FBX_SCALE_UNITS", global_scale=1.0,
