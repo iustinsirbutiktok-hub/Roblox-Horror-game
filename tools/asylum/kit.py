@@ -1136,6 +1136,7 @@ def finish(name, out_dir, previews=None):
             bm.from_mesh(cp.data)
             lay = bm.faces.layers.int.get("grp")
             bmesh.ops.delete(bm, geom=[f for f in bm.faces if f[lay] != gi], context="FACES")
+            bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
             piv = V(GROUPS.get(gname, (0, 0, 0))) * STUDS_PER_M
             bmesh.ops.translate(bm, vec=-piv, verts=bm.verts)
             bm.to_mesh(cp.data)

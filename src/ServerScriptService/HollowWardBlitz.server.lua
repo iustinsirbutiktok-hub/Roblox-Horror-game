@@ -261,18 +261,27 @@ local function spawnPatients()
 		return
 	end
 	local desc = Instance.new("HumanoidDescription")
+	-- (the modelled patient, if you've rigged it into ServerStorage with RigAsylumPatient)
+	local template = ServerStorage:FindFirstChild("AsylumPatient")
 	local index = 0
 	for _, bed in ipairs(props:GetChildren()) do
 		if bed:GetAttribute("Patient") then
 			index += 1
-			local ok, model = pcall(function()
-				return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R6)
-			end)
+			local ok, model
+			if template then
+				ok, model = true, template:Clone()
+			else
+				ok, model = pcall(function()
+					return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R6)
+				end)
+			end
 			if ok and model then
 				model.Name = "Patient" .. index
 				model:SetAttribute("Patient", true)
 				model:SetAttribute("Wake", 0)
-				dress(model)
+				if not template then
+					dress(model)
+				end
 				local h = model:FindFirstChildOfClass("Humanoid")
 				h.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 				h.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
