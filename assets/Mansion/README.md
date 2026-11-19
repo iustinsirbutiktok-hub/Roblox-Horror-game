@@ -1,6 +1,6 @@
 # Hollowmere House: Victorian mansion models
 
-Twenty pieces for an abandoned Victorian mansion: dark carved mahogany and walnut, faded velvet,
+Twenty-four pieces for an abandoned Victorian mansion: dark carved mahogany and walnut, faded velvet,
 tarnished gilt and brass, foxed and cracked mirrors, and a layer of dust on everything. Low poly,
 with baked colour and normal maps embedded in each FBX.
 
@@ -26,6 +26,10 @@ with baked colour and normal maps embedded in each FBX.
 | PersianRug | Worn Persian rug (2.4 x 1.6 m): medallion and borders, a stain, fringes, one corner kicked up | 4.8 x 7.7 x 0.5 |
 | Gramophone | Horn gramophone: walnut case and crank, a shellac record, the tone arm, a big brass flower horn | 1.8 x 2.0 x 2.8 |
 | DeadFlowerVase | Blue-and-white china vase of dead roses drooping over the rim, petals fallen round it | 1.0 x 1.2 x 1.5 |
+| LibraryBookshelf | Tall open library bookshelf: fluted pilasters, carved crest, six shelves packed with old books (flat stacks, gaps, one leaning), an hourglass, a globe, a candle stub, two books fallen on the floor; the rolling ladder on its brass rail | 5.5 x 3.0 x 8.0 |
+| CarvedArmchair | Tall carved oak armchair, almost a throne: finials, a pointed crest with rosettes, buttoned green velvet edged with brass nails, scrolled arms | 2.0 x 1.9 x 4.7 |
+| FamilyPortrait | The family in oils: father, mother, the boy, the little girl in white with her doll. His face is burnt out of the canvas, her eyes painted over black. Gilt frame, hanging crooked | 3.5 x 0.2 x 2.6 |
+| VanitasPainting | Vanitas still life in a black ebony frame: a skull on a book by a guttered candle, an hourglass run out, a wilted flower | 1.8 x 0.2 x 2.1 |
 
 The front of every piece faces **+Z** in Studio. The previews (`previews/`) show how each piece
 looks after `SetupMansion`.
@@ -52,6 +56,8 @@ parts and turn their `CandleLight` off.
 ## Loose parts
 
 - **UprightPiano:** its stool is a separate part (`Stool`), so you can move it.
+- **LibraryBookshelf:** its rolling ladder is a separate part (`Ladder`): slide it along the brass
+  rail, or take it away.
 - **Wardrobe:** each door is its own part with its pivot on the hinge (after SetupMansion). The
   left door is modelled standing ajar, with a faded white dress hanging inside. It's a good
   hiding spot.
@@ -66,7 +72,7 @@ w.DoorRight:PivotTo(w.DoorRight:GetPivot() * CFrame.Angles(0, math.rad(100), 0))
 
 ## Placing things
 
-- **Paintings** (PortraitPainting, ManorPainting): the back sits on the wall. They hang slightly
+- **Paintings** (PortraitPainting, ManorPainting, FamilyPortrait, VanitasPainting): the back sits on the wall. They hang slightly
   crooked on purpose.
 - **Chandelier:** hang it by the ceiling rose. It's 1.25 m (3.75 studs) from the ceiling to the
   bottom drop.

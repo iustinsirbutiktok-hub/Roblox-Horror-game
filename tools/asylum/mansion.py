@@ -24,7 +24,7 @@ def _hexshade(hexs, f):
 
 def cloth(g, base="#5c1a1c", stain=0.12, moldy=0.05, dirt=0.35, dusty=0.25, fade=0.15):
     """velvet, linen, damask: sun-faded on top, old water marks in a darker shade of itself, dusty"""
-    c, rough, metal, h = kit.fabric(g, base, stain=-2.0, moldy=moldy, dirt=dirt)
+    c, rough, metal, h = kit.fabric(g, base, stain=-8.0, moldy=moldy, dirt=dirt)     # (no tan stains at all)
     if stain > 0:
         c, _ = stains(g, c, stain * 2.5, _hexshade(base, 0.68), _hexshade(base, 0.5), 2.4)
     c = g.mix(c, shade(rgb(base), 1.45), g.mul(g.ms(g.up, 0.3, 0.9), fade))
@@ -960,16 +960,24 @@ def _ring(cw, ch, o_out, o_in, depth, zc, m):
         slab(poly, depth, (0, -depth / 2, zc), (90, 0, 0), m=m, bevel=0.003)
 
 
-def _framed(img_path, cw, ch, key):
-    """an ornate gilt frame round a canvas cw x ch, hung on the wall (back at y = 0), slightly crooked"""
+def _framed(img_path, cw, ch, key, style="gilt", tilt=3):
+    """a frame round a canvas cw x ch, hung on the wall (back at y = 0), slightly crooked:
+    style "gilt" is ornate gold with carved corners; "ebony" is black wood with a thin gilt slip"""
     material(key, "paint", base="#2a2418", chip=0.04, rust=-3.0, peel=-1.0, dirt=0.25, gloss=0.6, streaks=0.0)
-    fw = 0.11
+    material("ebony_frame", "vwood", base="#24160e", dark="#0e0805", axis="Z", grain=8.0, wear=0.4, water=0.0,
+             varnish=0.9, dusty=0.4)
+    fw = 0.11 if style == "gilt" else 0.085
     zc = ch / 2 + fw
-    with place(T((0, 0, zc), (0, 3, 0))):
+    with place(T((0, 0, zc), (0, tilt, 0))):
         decal(key, img_path, here((0, -0.0175, 0), (90, 0, 0)), (cw, ch))
         kit.UV_BOOST["Canvas"] = 3.0
         with group("Canvas"):
             box((cw + 0.01, 0.01, ch + 0.01), (0, -0.0105, 0), m=key)
+        if style == "ebony":
+            for o_out, o_in, depth, m in ((fw, 0.0, 0.022, "ebony_frame"), (fw * 0.96, fw * 0.45, 0.055, "ebony_frame"),
+                                          (fw * 0.45, fw * 0.16, 0.04, "ebony_frame"), (fw * 0.16, 0.0, 0.03, "gilt")):
+                _ring(cw, ch, o_out, o_in, depth, 0.0, m)
+            return
         for o_out, o_in, depth in ((fw, 0.0, 0.022), (fw * 0.96, fw * 0.62, 0.05), (fw * 0.55, fw * 0.3, 0.04),
                                    (fw * 0.24, fw * 0.08, 0.06), (fw * 0.08, 0.0, 0.03)):
             _ring(cw, ch, o_out, o_in, depth, 0.0, "gilt")
@@ -1123,3 +1131,208 @@ def dead_flower_vase():
         a, r = rnd.uniform(0, 2 * math.pi), rnd.uniform(0.1, 0.22)
         with place(T((math.cos(a) * r, math.sin(a) * r, 0.002), (rnd.uniform(-10, 10), 0, rnd.uniform(0, 360)))):
             slab([(0, 0), (0.012, 0.004), (0.014, 0.014), (0.004, 0.016), (-0.004, 0.008)], 0.002, m="dead_rose")
+
+
+
+# ---------------------------------------------------------------- more for the house
+
+def fill_shelf(x0, x1, z, depth, rnd, max_h=0.3):
+    """books on a shelf: runs of upright ones in mixed sizes and colours with gilt bands, now and
+    then a flat stack, a gap, one leaning into the gap"""
+    x = x0
+    lean_next = False
+    while x < x1 - 0.03:
+        r = rnd.random()
+        if r < 0.07 and x1 - x > 0.26:                                # a flat stack
+            w = rnd.uniform(0.16, 0.22)
+            zz = z
+            for k in range(rnd.randint(2, 5)):
+                h = rnd.uniform(0.025, 0.045)
+                box((w, depth * rnd.uniform(0.7, 0.9), h), (x + w / 2 + rnd.uniform(-0.01, 0.01), 0.02, zz + h / 2),
+                    (0, 0, rnd.uniform(-6, 6)), m=rnd.choice(BOOKS))
+                zz += h
+            x += w + 0.012
+            continue
+        if r < 0.12:                                                  # a gap, and the next book leans into it
+            x += rnd.uniform(0.04, 0.09)
+            lean_next = True
+            continue
+        w = rnd.uniform(0.022, 0.055)
+        h = rnd.uniform(0.6, 1.0) * max_h
+        if x + w > x1:
+            break
+        m = rnd.choice(BOOKS)
+        d = depth * rnd.uniform(0.75, 0.95)
+        if lean_next:
+            with place(T((x, 0.02, z), (0, -22, 0))):
+                box((w - 0.002, d, h), (-w / 2, 0, h / 2), m=m)
+            x += w * 0.6
+            lean_next = False
+            continue
+        box((w - 0.002, d, h), (x + w / 2, 0.02, z + h / 2), m=m)
+        for fz in (0.12, 0.86):
+            box((w - 0.001, 0.003, 0.007), (x + w / 2, 0.02 - d / 2 - 0.001, z + h * fz), m="gilt")
+        x += w
+
+
+def hourglass(at, h=0.16):
+    with place(T(at)):
+        for z in (0.0, h - 0.012):
+            box((0.09, 0.09, 0.012), (0, 0, z + 0.006), m="walnut_h", bevel=0.003)
+        for a in range(3):
+            ang = math.radians(90 + 120 * a)
+            cyl(0.005, h - 0.024, (math.cos(ang) * 0.035, math.sin(ang) * 0.035, h / 2), m="walnut_v", n=6)
+        with group("Glass"):
+            lathe([(0.0, 0.012), (0.026, 0.02), (0.03, 0.045), (0.005, h / 2), (0.03, h - 0.045), (0.026, h - 0.02),
+                   (0.0, h - 0.012)], m="old_glass", n=10)
+        lathe([(0, 0.013), (0.024, 0.016), (0.012, 0.04), (0, 0.045)], m="sand", n=10)
+
+
+@piece("LibraryBookshelf", close=((1.9, -3.4, 4.6), (-0.2, -0.4, 3.6), 40), tex=2048)
+def library_bookshelf():
+    """a tall open library bookshelf in mahogany: fluted pilasters, a carved crest, six shelves packed
+    with old books (flat stacks, gaps, one leaning), an hourglass, a globe, a candle stub; two books
+    fallen on the floor, one lying open; the rolling library ladder on its brass rail (its own mesh)"""
+    mansion_materials()
+    material("globe", "paint", base="#a8946a", chip=0.15, rust=-3.0, peel=-1.0, dirt=0.4, gloss=0.4, streaks=0.0)
+    material("sand", "paper", base="#c8ac78")
+    W, D, H = 1.7, 0.38, 2.35
+    rnd = random.Random(33)
+    box((W + 0.06, D + 0.04, 0.12), (0, 0, 0.06), m="mahogany_h", bevel=0.01)
+    for sx in (-1, 1):
+        x = sx * (W / 2 - 0.0225)
+        box((0.045, D, H - 0.12), (x, 0, 0.12 + (H - 0.12) / 2), m="mahogany_v", bevel=0.004)
+        box((0.07, 0.02, H - 0.42), (x, -D / 2 - 0.01, 0.12 + (H - 0.42) / 2 + 0.1), m="mahogany_v", bevel=0.004)
+        for k in (-1, 0, 1):                                          # flutes
+            box((0.008, 0.006, H - 0.7), (x + k * 0.018, -D / 2 - 0.021, 0.12 + (H - 0.42) / 2 + 0.1), m="ebony")
+        box((0.095, 0.035, 0.07), (x, -D / 2 - 0.012, H - 0.16), m="mahogany_h", bevel=0.008)
+        box((0.095, 0.035, 0.09), (x, -D / 2 - 0.012, 0.2), m="mahogany_h", bevel=0.008)
+    box((0.03, D - 0.03, H - 0.22), (0, 0.0, 0.13 + (H - 0.22) / 2), m="mahogany_v")
+    box((W - 0.09, 0.015, H - 0.13), (0, D / 2 - 0.0075, 0.125 + (H - 0.13) / 2), m="mahogany_v")
+    box((W - 0.09, D - 0.02, 0.025), (0, 0, H - 0.0125), m="mahogany_h")
+    cornice(W, D, H, "mahogany_h")
+    box((W + 0.14, D + 0.07, 0.03), (0, -0.035, H + 0.105), m="mahogany_h", bevel=0.005)
+    pts = [(0.42 * math.cos(math.pi * i / 14), 0.18 * math.sin(math.pi * i / 14)) for i in range(15)]
+    slab(pts, 0.03, (0, -D / 2 - 0.05, H + 0.12), (90, 0, 0), m="mahogany_h", bevel=0.006)
+    with place(T((0, -D / 2 - 0.07, H + 0.2), (90, 0, 0))):
+        lathe([(0, 0), (0.065, 0), (0.05, 0.016), (0.025, 0.03), (0, 0.033)], m="mahogany_h", n=12)
+    # the shelves and what's on them
+    shelves = (0.13, 0.5, 0.86, 1.22, 1.58, 1.94)
+    bays = ((-W / 2 + 0.045, -0.015), (0.015, W / 2 - 0.045))
+    for z in shelves:
+        for b0, b1 in bays:
+            box((b1 - b0, D - 0.03, 0.025), ((b0 + b1) / 2, 0.0, z - 0.0125), m="mahogany_h")
+            box((b1 - b0, 0.014, 0.035), ((b0 + b1) / 2, -D / 2 + 0.022, z - 0.016), m="mahogany_h", bevel=0.003)
+    for i, z in enumerate(shelves):
+        top = (shelves[i + 1] if i + 1 < len(shelves) else H) - z - 0.035
+        for k, (b0, b1) in enumerate(bays):
+            lo, hi = b0 + 0.01, b1 - 0.01
+            if (i, k) == (2, 1):
+                hourglass((hi - 0.06, 0.02, z))
+                hi -= 0.13
+            if (i, k) == (4, 0):
+                with place(T((lo + 0.1, 0.02, z))):                  # a small globe on its stand
+                    lathe([(0, 0), (0.06, 0), (0.05, 0.015), (0.012, 0.03), (0.012, 0.06), (0, 0.06)], m="walnut_v", n=10)
+                    sphere(0.09, (0, 0, 0.16), m="globe", n=14, rings=9)
+                    with place(T((0, 0, 0.16), (0, 23, 0))):
+                        torus(0.1, 0.006, (0, 0, 0), (90, 0, 0), m="brass", n=20, k=4)
+                lo += 0.22
+            if (i, k) == (1, 1):
+                with place(T((hi - 0.05, 0.0, z))):                  # a candle stub in a brass chamberstick
+                    lathe([(0, 0), (0.05, 0), (0.05, 0.008), (0.012, 0.012), (0.012, 0.03), (0, 0.03)], m="brass", n=12)
+                    torus(0.018, 0.004, (0.055, 0, 0.01), (90, 0, 0), m="brass", n=8, k=4)
+                    candle((0, 0, 0.03), 0.05, flame=False, drips=4, seed=61)
+                hi -= 0.12
+            fill_shelf(lo, hi, z, D - 0.1, rnd, min(0.3, top))
+    # fallen on the floor: one closed, one open face down... and one open face up
+    box((0.17, 0.24, 0.035), (-0.42, -D / 2 - 0.22, 0.0175), (0, 0, 28), m="book_red", bevel=0.004)
+    with place(T((0.2, -D / 2 - 0.3, 0.0), (0, 0, -12))):
+        for s in (-1, 1):
+            box((0.16, 0.24, 0.006), (s * 0.085, 0, 0.012), (0, s * -6, 0), m="book_brown")
+            box((0.15, 0.23, 0.012), (s * 0.08, 0, 0.022), (0, s * -6, 0), m="paper")
+    # the library ladder on its brass rail
+    cyl(0.012, W - 0.02, (0, -D / 2 - 0.045, 2.12), (0, 90, 0), m="brass", n=8)
+    for x in (-W / 2 + 0.05, 0, W / 2 - 0.05):
+        box((0.02, 0.05, 0.03), (x, -D / 2 - 0.022, 2.12), m="brass", bevel=0.004)
+    xl, foot = 0.38, -D / 2 - 0.58
+    L = math.hypot(0.53, 2.12)
+    lean = -math.degrees(math.atan2(0.53, 2.12))
+    with group("Ladder", (xl, foot, 0)), place(T((xl, foot, 0), (lean, 0, 0))):
+        for sx in (-1, 1):
+            box((0.035, 0.05, L), (sx * 0.2, 0, L / 2), m="walnut_v", bevel=0.005)
+            cyl(0.03, 0.02, (sx * 0.2, 0.0, 0.03), (0, 90, 0), m="brass", n=10)
+            sweep([(sx * 0.2, 0.0, L - 0.02), (sx * 0.2, 0.03, L + 0.03), (sx * 0.2, 0.07, L + 0.02),
+                   (sx * 0.2, 0.07, L - 0.03)], 0.006, "brass", 5, bend=0.01)
+        for k in range(7):
+            z = 0.28 + k * 0.27
+            box((0.4, 0.07, 0.022), (0, -0.01, z), (-lean, 0, 0), m="walnut_h", bevel=0.004)
+
+
+@piece("CarvedArmchair", close=((1.6, -2.4, 3.6), (0, 0, 2.7), 40))
+def carved_armchair():
+    """a tall carved oak armchair, almost a throne: turned front legs, back posts rising to finials,
+    a pointed-arch crest carved with rosettes, buttoned green velvet back and seat edged with brass
+    nails, scrolled arms on turned supports, an H-stretcher"""
+    mansion_materials()
+    for key, axis in (("oak_v", "Z"), ("oak_h", "X"), ("oak_y", "Y")):
+        material(key, "vwood", base="#5e4126", dark="#2a1a0c", axis=axis, grain=7.0, wear=0.5, water=0.2, varnish=0.7,
+                 dusty=0.38)
+    W, Dp, SH = 0.64, 0.56, 0.46
+    for sx in (-1, 1):
+        lathe(leg_profile(SH - 0.08, 0.034), (sx * (W / 2 - 0.04), -Dp / 2 + 0.04, 0), m="oak_v", n=10)
+        box((0.058, 0.058, 1.42), (sx * (W / 2 - 0.035), Dp / 2 - 0.04, 0.71), m="oak_v", bevel=0.006)
+        lathe(FINIAL, (sx * (W / 2 - 0.035), Dp / 2 - 0.04, 1.42), m="oak_v", n=10)
+        lathe([(0, 0), (0.022, 0), (0.027, 0.03), (0.017, 0.08), (0.025, 0.14), (0.016, 0.2), (0.022, 0.24), (0, 0.25)],
+              (sx * (W / 2 - 0.025), -Dp / 2 + 0.06, SH + 0.03), m="oak_v", n=8)
+        sweep([(sx * (W / 2 - 0.03), Dp / 2 - 0.06, SH + 0.27), (sx * (W / 2 - 0.02), -Dp / 2 + 0.03, SH + 0.285),
+               (sx * (W / 2 - 0.015), -Dp / 2 - 0.03, SH + 0.25)], 0.026, "oak_y", 8, bend=0.05)
+        torus(0.024, 0.011, (sx * (W / 2 - 0.015), -Dp / 2 - 0.035, SH + 0.235), (0, 90, 0), m="oak_h", n=10, k=5)
+        box((0.032, Dp - 0.08, 0.045), (sx * (W / 2 - 0.04), 0, 0.12), m="oak_y", bevel=0.004)
+    box((W - 0.1, 0.032, 0.045), (0, 0, 0.12), m="oak_h", bevel=0.004)
+    box((W, Dp, 0.09), (0, 0, SH - 0.055), m="oak_h", bevel=0.006)
+    La = W - 0.04                                                     # the front apron, carved
+    pts = [(-La / 2, SH - 0.1), (La / 2, SH - 0.1), (La / 2, SH - 0.16)]
+    for i in range(1, 24):
+        x = La / 2 - La * i / 24
+        pts.append((x, SH - 0.16 - 0.03 * abs(math.sin(math.pi * i / 6))))
+    pts.append((-La / 2, SH - 0.16))
+    slab(pts, 0.02, (0, -Dp / 2 - 0.006, 0), (90, 0, 0), m="oak_h", bevel=0.003)
+    slab(rounded_rect(W - 0.05, Dp - 0.05, 0.05, 2), 0.075, (0, -0.005, SH + 0.025), m="velvet_green", bevel=0.026)
+    for i in range(16):
+        sphere(0.0065, (-W / 2 + 0.04 + i * (W - 0.08) / 15, -Dp / 2 + 0.012, SH - 0.004), m="brass", n=6, rings=3)
+    # the back: a buttoned velvet panel studded round its edge, a carved rail under it
+    yb = Dp / 2 - 0.045
+    box((W - 0.11, 0.05, 0.5), (0, yb, SH + 0.38), m="velvet_green", bevel=0.02)
+    for r in range(3):
+        for c in range(3):
+            sphere(0.011, ((c - 1) * 0.14, yb - 0.027, SH + 0.22 + r * 0.15), m="velvet_green", n=6, rings=4)
+    for k in range(13):
+        sphere(0.006, (-(W - 0.11) / 2 + 0.01 + k * (W - 0.13) / 12, yb - 0.026, SH + 0.62), m="brass", n=6, rings=3)
+        sphere(0.006, (-(W - 0.11) / 2 + 0.01 + k * (W - 0.13) / 12, yb - 0.026, SH + 0.14), m="brass", n=6, rings=3)
+    box((W - 0.1, 0.04, 0.05), (0, yb, SH + 0.1), m="oak_h", bevel=0.005)
+    # the crest: a pointed arch, three rosettes
+    arch = [(-0.27, 0.0), (0.27, 0.0), (0.27, 0.1)]
+    for i in range(1, 9):                                             # right half of the arch, meeting in a point
+        t = i / 8
+        arch.append((0.27 * math.cos(math.pi / 2 * t), 0.1 + 0.2 * (0.5 * t + 0.5 * math.sin(math.pi / 2 * t))))
+    arch += [(-x, z) for x, z in arch[3:-1][::-1]] + [(-0.27, 0.1)]
+    slab(arch, 0.045, (0, Dp / 2 - 0.04, SH + 0.64), (90, 0, 0), m="oak_h", bevel=0.006)
+    for x, r in ((-0.14, 0.035), (0.0, 0.05), (0.14, 0.035)):
+        with place(T((x, Dp / 2 - 0.065, SH + 0.64 + (0.14 if x == 0 else 0.06)), (90, 0, 0))):
+            lathe([(0, 0), (r, 0), (r * 0.8, r * 0.3), (r * 0.35, r * 0.5), (0, r * 0.55)], m="oak_h", n=10)
+
+
+@piece("FamilyPortrait", close=((1.3, -3.4, 2.0), (0, 0, 1.7), 40))
+def family_portrait():
+    """the family in oils: father, mother, the boy, the little girl in white with her doll - his face
+    burnt out of the canvas, her eyes painted over black. Gilt frame, hanging crooked"""
+    mansion_materials()
+    _framed(art.family_png(), 0.9, 0.62, "canvas_family", "gilt", -2)
+
+
+@piece("VanitasPainting", close=((0.8, -2.3, 1.9), (0, 0, 1.6), 40))
+def vanitas_painting():
+    """a vanitas still life in a black frame: a skull on a book by a guttered candle, an hourglass
+    run out, a wilted flower"""
+    mansion_materials()
+    _framed(art.vanitas_png(), 0.42, 0.52, "canvas_vanitas", "ebony", 1.5)

@@ -262,3 +262,122 @@ def cracks_png(name="mirrorcracks", S=512, seed=8):
                 cy + math.sin(2 * math.pi * k / 20) * r * rnd.uniform(0.8, 1.15)) for k in range(21)]
         d.line(pts, fill=(235, 240, 240, 200), width=1)
     return kit._save(im, name)
+
+
+def _figure(d, cx, top, h, coat, face=(206, 178, 150), hair=(36, 28, 22), dress=False, beard=False, eyes=(40, 30, 24),
+            child=False):
+    """a stiff Victorian sitter, front on: head, shoulders, coat or dress down to the frame"""
+    hr = h * (0.1 if not child else 0.12)
+    hy = top + hr
+    sw = h * (0.24 if not child else 0.2)
+    if dress:
+        d.polygon([(cx - sw, top + h * 0.27), (cx + sw, top + h * 0.27), (cx + sw * 1.8, top + h * 1.2),
+                   (cx - sw * 1.8, top + h * 1.2)], fill=coat)
+    else:
+        d.polygon([(cx - sw, top + h * 0.27), (cx + sw, top + h * 0.27), (cx + sw * 1.05, top + h * 1.2),
+                   (cx - sw * 1.05, top + h * 1.2)], fill=coat)
+        d.polygon([(cx - sw * 0.25, top + h * 0.27), (cx + sw * 0.25, top + h * 0.27), (cx, top + h * 0.5)],
+                  fill=(200, 196, 186))                                     # the white shirt front
+    d.rectangle((cx - hr * 0.4, hy + hr * 0.7, cx + hr * 0.4, top + h * 0.3), fill=face)
+    d.ellipse((cx - hr * 0.82, hy - hr, cx + hr * 0.82, hy + hr), fill=face)
+    d.chord((cx - hr * 0.9, hy - hr * 1.15, cx + hr * 0.9, hy + hr * 0.3), 180, 360, fill=hair)
+    if beard:
+        d.chord((cx - hr * 0.8, hy - hr * 0.2, cx + hr * 0.8, hy + hr * 1.15), 0, 180, fill=hair)
+    for ex in (cx - hr * 0.32, cx + hr * 0.32):
+        d.ellipse((ex - hr * 0.13, hy - hr * 0.15, ex + hr * 0.13, hy + hr * 0.05), fill=eyes)
+    return hy, hr
+
+
+def family_png(name="family", W=640, H=440, seed=9):
+    """the family: father standing, mother seated, a boy, and the little girl in white with her doll.
+    Someone has burnt the father's face out, and the girl's eyes were painted over black - later."""
+    from PIL import Image, ImageDraw, ImageFilter
+    rnd = random.Random(seed)
+    im = Image.new("RGBA", (W, H), (34, 30, 22, 255))
+    d = ImageDraw.Draw(im)
+    for r in range(320, 0, -8):                                       # a dim drawing-room glow behind them
+        c = int(34 + (320 - r) * 0.07)
+        d.ellipse((W * 0.45 - r * 1.4, H * 0.42 - r, W * 0.45 + r * 1.4, H * 0.42 + r), fill=(c, c - 3, c - 12, 255))
+    d.rectangle((0, H * 0.82, W, H), fill=(40, 28, 20, 255))                              # the carpet
+    d.rectangle((W * 0.08, H * 0.1, W * 0.18, H * 0.82), fill=(52, 20, 18, 255))           # a curtain
+    fy, fr = _figure(d, W * 0.36, H * 0.1, H * 0.75, (20, 18, 18, 255), beard=True)     # father, standing
+    d.rectangle((W * 0.42, H * 0.52, W * 0.62, H * 0.6), fill=(60, 34, 24, 255))         # mother's chair back
+    _figure(d, W * 0.52, H * 0.3, H * 0.55, (28, 22, 30, 255), dress=True)              # mother, seated
+    _figure(d, W * 0.7, H * 0.4, H * 0.45, (30, 30, 34, 255), child=True)               # the boy
+    gy, gr = _figure(d, W * 0.84, H * 0.5, H * 0.38, (214, 208, 196, 255), hair=(150, 110, 60, 255), dress=True,
+                     child=True)                                                          # the girl in white
+    d.ellipse((W * 0.86, H * 0.74, W * 0.9, H * 0.79), fill=(214, 186, 160, 255))        # her doll's head
+    d.polygon([(W * 0.855, H * 0.79), (W * 0.905, H * 0.79), (W * 0.91, H * 0.86), (W * 0.85, H * 0.86)],
+              fill=(120, 40, 40, 255))
+    im = im.filter(ImageFilter.GaussianBlur(1.6))
+    d = ImageDraw.Draw(im, "RGBA")
+    # the girl's eyes painted over: thick black, a little drip
+    for ex in (W * 0.84 - gr * 0.32, W * 0.84 + gr * 0.32):
+        d.ellipse((ex - gr * 0.22, gy - gr * 0.25, ex + gr * 0.22, gy + gr * 0.12), fill=(6, 6, 6, 255))
+        d.line([(ex, gy + gr * 0.1), (ex + 1, gy + gr * 0.6)], fill=(6, 6, 6, 255), width=2)
+    # the father's face burnt out: a black-edged hole with scorched brown round it
+    cx, cy = W * 0.36, fy
+    for r, col in ((fr * 1.9, (70, 42, 20, 120)), (fr * 1.5, (40, 24, 12, 200)), (fr * 1.15, (12, 8, 6, 255))):
+        pts = [(cx + math.cos(a) * r * rnd.uniform(0.75, 1.15), cy + math.sin(a) * r * rnd.uniform(0.75, 1.15))
+               for a in [2 * math.pi * i / 18 for i in range(18)]]
+        d.polygon(pts, fill=col)
+    _crackle(im, rnd, 300)
+    im = _varnish(im, rnd, 0.35, 0.7)
+    return kit._save(im, name)
+
+
+def vanitas_png(name="vanitas", W=420, H=520, seed=10):
+    """a vanitas still life: a skull on a book by a guttered candle, an hourglass run out, a wilted
+    flower, all in one candle's warm light out of the dark"""
+    from PIL import Image, ImageDraw, ImageFilter
+    rnd = random.Random(seed)
+    im = Image.new("RGBA", (W, H), (14, 11, 8, 255))
+    d = ImageDraw.Draw(im)
+    lx, ly = W * 0.3, H * 0.36                                         # the candle flame: the only light
+    for r in range(300, 0, -6):
+        c = int(14 + (300 - r) * 0.13)
+        d.ellipse((lx - r, ly - r, lx + r, ly + r), fill=(c, int(c * 0.8), int(c * 0.55), 255))
+    d.rectangle((0, H * 0.7, W, H), fill=(52, 30, 18, 255))                               # the table
+    d.line([(0, H * 0.7), (W, H * 0.7)], fill=(90, 56, 30, 255), width=3)
+    # the book under the skull
+    d.polygon([(W * 0.4, H * 0.7), (W * 0.92, H * 0.7), (W * 0.9, H * 0.64), (W * 0.42, H * 0.64)],
+              fill=(70, 30, 22, 255))
+    d.polygon([(W * 0.42, H * 0.64), (W * 0.9, H * 0.64), (W * 0.88, H * 0.62), (W * 0.44, H * 0.62)],
+              fill=(196, 180, 140, 255))
+    # the skull: cranium, cheek, jaw, sockets, nose, teeth
+    sx, sy, sr = W * 0.64, H * 0.47, W * 0.15
+    bone, shade_ = (206, 192, 160, 255), (120, 98, 70, 255)
+    d.ellipse((sx - sr, sy - sr, sx + sr, sy + sr * 0.85), fill=bone)
+    d.polygon([(sx - sr * 0.75, sy + sr * 0.3), (sx + sr * 0.75, sy + sr * 0.3), (sx + sr * 0.55, sy + sr * 1.05),
+               (sx - sr * 0.55, sy + sr * 1.05)], fill=bone)
+    d.ellipse((sx + sr * 0.2, sy - sr * 0.7, sx + sr * 0.95, sy + sr * 0.6), fill=shade_)                 # shadow side
+    for ex in (sx - sr * 0.38, sx + sr * 0.32):
+        d.ellipse((ex - sr * 0.26, sy - sr * 0.05, ex + sr * 0.26, sy + sr * 0.42), fill=(10, 8, 6, 255))
+    d.polygon([(sx - sr * 0.04, sy + sr * 0.48), (sx - sr * 0.14, sy + sr * 0.72), (sx + sr * 0.06, sy + sr * 0.72)],
+              fill=(10, 8, 6, 255))
+    for k in range(7):
+        tx = sx - sr * 0.42 + k * sr * 0.14
+        d.rectangle((tx, sy + sr * 0.82, tx + sr * 0.1, sy + sr * 0.98), fill=(226, 214, 184, 255))
+    d.line([(sx - sr * 0.5, sy + sr * 0.99), (sx + sr * 0.5, sy + sr * 0.99)], fill=(30, 22, 14, 255), width=2)
+    # the candle, guttered, in its holder; a thread of smoke
+    d.ellipse((lx - 34, H * 0.68, lx + 34, H * 0.72), fill=(150, 116, 50, 255))
+    d.rectangle((lx - 12, H * 0.44, lx + 12, H * 0.69), fill=(222, 208, 176, 255))
+    for k in range(4):
+        x = lx - 12 + k * 7
+        d.line([(x, H * 0.44), (x + 1, H * 0.44 + rnd.uniform(20, 60))], fill=(236, 226, 200, 255), width=4)
+    d.ellipse((lx - 6, ly - 12, lx + 6, ly + 14), fill=(255, 236, 170, 255))
+    d.line([(lx, ly - 14), (lx + 6, ly - 60), (lx - 4, ly - 110), (lx + 10, ly - 170)], fill=(70, 66, 60, 120), width=2)
+    # the hourglass, run out
+    hx = W * 0.13
+    d.rectangle((hx - 30, H * 0.5, hx + 30, H * 0.52), fill=(90, 60, 34, 255))
+    d.rectangle((hx - 30, H * 0.68, hx + 30, H * 0.7), fill=(90, 60, 34, 255))
+    d.polygon([(hx - 22, H * 0.52), (hx + 22, H * 0.52), (hx + 3, H * 0.6), (hx + 22, H * 0.68), (hx - 22, H * 0.68),
+               (hx - 3, H * 0.6)], fill=(110, 118, 110, 180))
+    d.polygon([(hx - 20, H * 0.68), (hx + 20, H * 0.68), (hx, H * 0.64)], fill=(190, 160, 110, 255))
+    # a wilted flower drooping over the table edge
+    d.line([(W * 0.86, H * 0.7), (W * 0.9, H * 0.76), (W * 0.88, H * 0.84)], fill=(70, 66, 30, 255), width=3)
+    d.ellipse((W * 0.85, H * 0.83, W * 0.91, H * 0.88), fill=(110, 30, 34, 255))
+    im = im.filter(ImageFilter.GaussianBlur(1.3))
+    _crackle(im, rnd, 240)
+    im = _varnish(im, rnd, 0.3, 0.8)
+    return kit._save(im, name)

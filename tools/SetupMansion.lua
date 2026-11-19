@@ -32,7 +32,7 @@ local MANSION = {}
 for _, n in ipairs({"FourPosterBed", "Wardrobe", "WingbackArmchair", "SheetedSofa", "DiningTable", "DiningChair",
 	"UprightPiano", "GrandfatherClock", "WritingDesk", "Bookcase", "RockingChair", "VanityDresser", "Candelabra",
 	"Chandelier", "PortraitPainting", "ManorPainting", "StandingMirror", "PersianRug", "Gramophone",
-	"DeadFlowerVase"}) do
+	"DeadFlowerVase", "LibraryBookshelf", "CarvedArmchair", "FamilyPortrait", "VanitasPainting"}) do
 	MANSION[n] = true
 end
 
