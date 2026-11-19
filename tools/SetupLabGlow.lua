@@ -18,6 +18,11 @@
 -- your own scripts can flicker or kill them.
 -- The moving parts (PowerSwitch.Lever, BreakerPanel.Door) get their pivot put on the hinge,
 -- so opening one is a single PivotTo (see assets/Lab/README.md).
+--   Feed01..Feed12 -> the SurveillanceStation's CCTV screens. Their pictures are baked into the
+-- model's texture. For sharp, glowing feeds upload assets/Lab/SurveillanceFeeds.png (Asset
+-- Manager > Images) and paste its ID below: each screen then shows its tile on a SurfaceGui.
+
+local FEED_ATLAS = "rbxassetid://0"   -- SurveillanceFeeds.png (leave 0 to keep the baked pictures)
 
 local LIGHTS = true            -- add PointLights
 local SHADOWS = true           -- the tank and pod lights cast shadows (looks great, costs a little)
@@ -49,7 +54,7 @@ local History = game:GetService("ChangeHistoryService")
 
 local LAB = {}
 for _, n in ipairs({"ContainmentTank", "ContainmentTankBroken", "CryoPod", "ControlConsole", "ServerRack", "BreakerPanel",
-	"Transformer", "LabBench", "CableTray", "PipeManifold", "PowerSwitch", "LabLamp"}) do
+	"Transformer", "LabBench", "CableTray", "PipeManifold", "PowerSwitch", "LabLamp", "SurveillanceStation"}) do
 	LAB[n] = true
 end
 
@@ -62,7 +67,7 @@ local recording = History:TryBeginRecording("SetupLabGlow")
 
 -- "ContainmentTank_GlowBlue" -> "ContainmentTank", "GlowBlue";  "GlowBlue" -> nil, "GlowBlue"
 local function split(name)
-	local piece, part = name:match("^(.-)_([%a]+)$")
+	local piece, part = name:match("^(.-)_([%w]+)$")
 	if piece and piece ~= "" then
 		return piece, part
 	end
@@ -197,8 +202,62 @@ for _, root in ipairs(targets) do
 	end
 end
 
+-- 4. the CCTV screens
+local useAtlas = FEED_ATLAS ~= "" and FEED_ATLAS ~= "rbxassetid://0"
+local feeds = 0
+for _, root in ipairs(targets) do
+	for _, p in ipairs(root:GetDescendants()) do
+		local n = p:IsA("MeshPart") and tonumber((select(2, split(p.Name))):match("^Feed(%d+)$"))
+		if n and isLab(p) then
+			for _, c in ipairs(p:GetChildren()) do
+				if (c:IsA("SurfaceGui") and c.Name == "Feed") or (c:IsA("SurfaceLight") and c.Name == "LabLight") then
+					c:Destroy()
+				end
+			end
+			if useAtlas then
+				for _, c in ipairs(p:GetChildren()) do
+					if c:IsA("SurfaceAppearance") then
+						c:Destroy()
+					end
+				end
+				p.TextureID = ""
+				p.Material = Enum.Material.SmoothPlastic
+				p.Color = Color3.new(0, 0, 0)
+				local gui = Instance.new("SurfaceGui")
+				gui.Name = "Feed"
+				gui.Face = Enum.NormalId.Back           -- the screens face the model's front (+Z)
+				gui.LightInfluence = 0                  -- glows: not lit by the room
+				gui.Brightness = 1.6
+				gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+				gui.PixelsPerStud = 100
+				local img = Instance.new("ImageLabel")
+				img.Size = UDim2.fromScale(1, 1)
+				img.BackgroundTransparency = 1
+				img.Image = FEED_ATLAS
+				img.ImageRectOffset = Vector2.new(((n - 1) % 4) * 256, math.floor((n - 1) / 4) * 192)
+				img.ImageRectSize = Vector2.new(256, 192)
+				img.Parent = gui
+				gui.Parent = p
+			end
+			p.CastShadow = false
+			p:SetAttribute("LabGlow", true)
+			if LIGHTS then
+				local light = Instance.new("SurfaceLight")
+				light.Name = "LabLight"
+				light.Face = Enum.NormalId.Back
+				light.Angle = 100
+				light.Range = 8
+				light.Brightness = 0.7
+				light.Color = n == 10 and COLOURS.Red or Color3.fromRGB(185, 230, 200)
+				light.Parent = p
+			end
+			feeds = feeds + 1
+		end
+	end
+end
+
 if recording then
 	History:FinishRecording(recording, Enum.FinishRecordingOperation.Commit)
 end
-print(("SetupLabGlow: %d glass/glow parts set up, %d pieces gathered into models, %d hinges set"):format(done, gathered,
-	hinged))
+print(("SetupLabGlow: %d glass/glow parts set up, %d pieces gathered into models, %d hinges set, %d CCTV screens%s")
+	:format(done, gathered, hinged, feeds, useAtlas and " (atlas)" or ""))

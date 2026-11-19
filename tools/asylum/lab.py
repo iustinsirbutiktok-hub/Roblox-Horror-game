@@ -811,3 +811,267 @@ def lab_lamp():
         sweep([(math.cos(a) * 0.12, math.sin(a) * 0.12, 0.12), (math.cos(a) * 0.1, math.sin(a) * 0.1, 0.05),
                (0, 0, 0.0)], 0.004, "lab_steel", 5, bend=0.03)
     torus(0.115, 0.004, (0, 0, 0.08), m="lab_steel", n=16, k=4)
+
+
+# ---------------------------------------------------------------- the surveillance station
+
+def frustum(w1, h1, w2, h2, y0, y1, dz=0.0, m="crt_beige"):
+    """a box tapering from w1 x h1 (at y0) to w2 x h2 (at y1, its centre dropped by dz): a CRT's back"""
+    bm = bmesh.new()
+    corners = ((-1, -1), (1, -1), (1, 1), (-1, 1))
+    f = [bm.verts.new((sx * w1 / 2, y0, sz * h1 / 2)) for sx, sz in corners]
+    b = [bm.verts.new((sx * w2 / 2, y1, dz + sz * h2 / 2)) for sx, sz in corners]
+    bm.faces.new(f)
+    bm.faces.new(b)
+    for i in range(4):
+        j = (i + 1) % 4
+        bm.faces.new((f[i], f[j], b[j], b[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return part(bm, m, STACK[-1], 30)
+
+
+def _screen_rect(w, h):
+    """where a CRT's picture sits on its bezel: (x, z, width, height)"""
+    return -w * 0.05, h * 0.03, w * 0.74, h * 0.74
+
+
+def crt(w, h, d, feed, plastic="crt_beige"):
+    """an old CCTV monitor at the current place (bezel centre): the picture is its own mesh
+    ("Feed01".."Feed12"), knobs and a power lamp down the right, the tapering tube housing behind.
+    Returns where its cable leaves the back."""
+    sx, sz, sw, sh = _screen_rect(w, h)
+    box((w, 0.05, h), m=plastic, bevel=0.015)
+    box((sw + 0.03, 0.012, sh + 0.03), (sx, -0.026, sz), m="crt_dark", bevel=0.004)
+    with group("Feed%02d" % feed):
+        box((sw, 0.006, sh), (sx, -0.032, sz), m="crt_feed")
+    xc = w / 2 - w * 0.085
+    for k in range(2):
+        cyl(0.011, 0.014, (xc, -0.03, -h * 0.12 - k * 0.055), (90, 0, 0), m="crt_dark", n=8)
+    with group("GlowGreen"):
+        box((0.01, 0.006, 0.006), (xc, -0.028, -h * 0.36), m="glow_green")
+    box((0.05, 0.004, 0.012), (sx - sw / 2 + 0.035, -0.027, sz - sh / 2 - 0.028), m="lab_steel")
+    frustum(w * 0.94, h * 0.94, w * 0.55, h * 0.55, 0.025, d, dz=-h * 0.06, m=plastic)
+    for k in range(5):                                           # vents on the top of the tube housing
+        y = 0.025 + (d - 0.025) * (0.45 + k * 0.1)
+        t = (y - 0.025) / (d - 0.025)
+        ztop = h * 0.47 + (-h * 0.06 + h * 0.275 - h * 0.47) * t
+        box((w * 0.3, 0.012, 0.004), (0, y, ztop + 0.001), (math.degrees(math.atan2(h * 0.255, d)), 0, 0),
+            m="crt_dark")
+    for s in (-1, 1):
+        box((0.06, 0.08, 0.012), (s * w * 0.35, 0.06, -h / 2 - 0.006), m="cable_black", bevel=0.003)
+    return V((0, d - 0.01, -h * 0.15))
+
+
+@piece("SurveillanceStation", close=((1.9, -4.6, 4.6), (0.2, 0.0, 3.9), 40), tex=2048)
+def surveillance_station():
+    """the security control room in one piece: a steel rack of twelve CCTV monitors showing the
+    facility (corridors, the tank room, a padded cell, the gate... and something standing at the end
+    of the west corridor), a desk with the video switcher, the camera joystick, a telephone, a
+    microphone, a terminal flashing CONTAINMENT BREACH, time-lapse recorders below, a log book
+    left open, cold coffee, an alarm beacon on top, cable everywhere - and the chair pushed back."""
+    import feeds
+    lab_materials()
+    kit.UV_BOOST["Feed"] = 3.0                      # the pictures get far more of the texture
+    material("crt_beige", "paint", base="#c6bda4", chip=0.2, rust=-3.0, peel=-1.0, dirt=0.35, gloss=0.4, streaks=0.1,
+             primer="#8a8578")
+    material("crt_dark", "bakelite", base="#161616")
+    material("vcr_plastic", "bakelite", base="#26272b")
+    material("desk_laminate", "paint", base="#8f8672", chip=0.25, rust=-3.0, peel=-1.0, dirt=0.4, gloss=0.5,
+             streaks=0.1, primer="#5c5444")
+    material("chair_vinyl", "vinyl", base="#25262a", crack=0.0, wear=0.15, tear=-2.0, stain=0.03)
+    material("mug", "porcelain", base="#d9d4c8", craze=0.3, stain=0.5, chips=0.3, rusty=0.0)
+    material("log_paper", "paper", base="#d8cfb0")
+    material("crt_feed", "glowpaint", base="#1c2a22")
+    sign = label_png("secctl", [("SECURITY CONTROL", 0.9), ("SECTOR C", 0.6)], 560, 140, bg=(30, 34, 38),
+                     fg=(214, 210, 196), font="cond")
+    material("sec_sign", "paint", base="#1e2226", chip=0.1, rust=-3, peel=-1, dirt=0.3)
+    decal("sec_sign", sign, here((0, 0.035, 2.57), (90, 0, 0)), (0.62, 0.15))
+    feed_imgs = feeds.build_feeds()
+
+    W, Y0, Y1 = 2.6, 0.06, 0.62                   # rack: width, front and back
+    shelves = (1.0, 1.47, 1.94)
+    TOP = 2.44
+    # the monitors: (row, x, w, h, depth, feed)
+    mons = [(0, -0.96, 0.48, 0.4, 0.42, 1), (0, -0.32, 0.48, 0.4, 0.42, 2), (0, 0.32, 0.48, 0.4, 0.42, 4),
+            (0, 0.96, 0.48, 0.4, 0.42, 12),
+            (1, -0.92, 0.5, 0.41, 0.44, 6), (1, 0.0, 0.74, 0.43, 0.5, 3), (1, 0.92, 0.5, 0.41, 0.44, 11),
+            (2, -0.96, 0.42, 0.34, 0.38, 5), (2, -0.32, 0.42, 0.34, 0.38, 7), (2, 0.32, 0.42, 0.34, 0.38, 8),
+            (2, 0.96, 0.42, 0.34, 0.38, 9)]
+    placed = [(shelves[r], x, w, h, d, f, (x, Y0 + 0.07, shelves[r] + h / 2 + 0.012)) for r, x, w, h, d, f in mons]
+    # the desk terminal (the alarm), facing the chair
+    term = (0.62, -0.32, 0.79 + 0.14)
+    # (decals first: the material reads them once)
+    for _, x, w, h, d, f, c in placed + [(0, 0, 0.34, 0.28, 0.32, 10, term)]:
+        sx, sz, sw, sh = _screen_rect(w, h)
+        decal("crt_feed", feed_imgs[f - 1], here((c[0] + sx, c[1] - 0.036, c[2] + sz), (90, 0, 0)), (sw, sh))
+
+    # ---- the rack: angle-iron uprights, shelves, a cable tray and the beacon on top
+    for x in (-W / 2, W / 2):
+        for y in (Y0, Y1):
+            box((0.04, 0.004, TOP + 0.02), (x, y - 0.018 * (1 if y == Y0 else -1), (TOP + 0.02) / 2), m="lab_grey")
+            box((0.004, 0.04, TOP + 0.02), (x - 0.018 * (1 if x < 0 else -1), y, (TOP + 0.02) / 2), m="lab_grey")
+        for k in range(47):
+            box((0.012, 0.004, 0.02), (x, Y0 - 0.021, 0.1 + k * 0.05), m="cable_black")
+    for z in shelves + (TOP,):
+        box((W, Y1 - Y0, 0.02), (0, (Y0 + Y1) / 2, z - 0.01), m="lab_grey", bevel=0.003)
+        box((W, 0.004, 0.04), (0, Y0 - 0.002, z - 0.02), m="lab_grey")
+    for y in (Y0, Y1):
+        box((W, 0.03, 0.03), (0, y, 0.05), m="lab_grey")
+    for s in (-1, 1):                                                   # cross bracing at the back
+        sweep([(-s * W / 2, Y1, 0.1), (s * W / 2, Y1, shelves[0] - 0.05)], 0.006, "lab_steel", 4)
+    box((0.64, 0.006, 0.16), (0, Y0 - 0.02, 2.57), m="sec_sign", bevel=0.002)
+    for x in (-0.25, 0.25):
+        box((0.02, 0.01, 0.12), (x, Y0 - 0.01, 2.47), m="lab_steel")
+    with place(T((1.05, 0.3, TOP))):                                    # the alarm beacon
+        cyl(0.07, 0.04, (0, 0, 0.02), m="crt_dark", n=12)
+        with group("GlowRed"):
+            lathe([(0.055, 0.04), (0.055, 0.12), (0.04, 0.16), (0, 0.17)], m="glow_red", n=12)
+    for k in range(7):                                                  # cables up to the ceiling
+        x = -0.6 + k * 0.05
+        cable([(x, 0.4, TOP), (x + 0.02, 0.45, TOP + 0.15), (x * 0.5, 0.5, TOP + 0.5)], 0.012,
+              ("cable_black", "cable_grey", "cable_black", "cable_blue")[k % 4], bend=0.05)
+
+    # ---- the monitors, their cables down the back into a bundle
+    bundle = []
+    for z0, x, w, h, d, f, c in placed:
+        with place(T(c)):
+            back = here(tuple(crt(w, h, d, f))).translation
+        bundle.append((back, x))
+    for i, (b, x) in enumerate(bundle):
+        side = 1 if x > 0 else -1
+        cable([b, b + V((0, 0.06, -0.04)), V((x * 0.9, Y1 - 0.03, b.z - 0.12)),
+               V((side * (1.12 - 0.03 * (i % 4)), Y1 - 0.03, b.z - 0.25)),
+               V((side * (1.12 - 0.03 * (i % 4)), Y1 - 0.03, 0.05))], 0.008,
+              ("cable_black", "cable_grey")[i % 2], bend=0.06, n=5)
+
+    # ---- the desk
+    DT, DY0, DY1 = 0.76, -0.74, 0.0
+    dyc = (DY0 + DY1) / 2
+    box((W, DY1 - DY0, 0.04), (0, dyc, DT - 0.02), m="desk_laminate", bevel=0.008)
+    box((W + 0.01, 0.012, 0.04), (0, DY0 - 0.002, DT - 0.02), m="lab_steel")
+    for s in (-1, 1):
+        cx = s * (W / 2 - 0.32)
+        if s < 0:
+            box((0.6, DY1 - DY0 - 0.04, DT - 0.06), (cx, dyc, (DT - 0.06) / 2 + 0.02), m="lab_grey", bevel=0.006)
+        else:                                                           # open: the recorders live in here
+            for x in (cx - 0.29, cx + 0.29):
+                box((0.02, DY1 - DY0 - 0.04, DT - 0.06), (x, dyc, (DT - 0.06) / 2 + 0.02), m="lab_grey", bevel=0.004)
+            for k in range(4):
+                box((0.56, DY1 - DY0 - 0.06, 0.012), (cx, dyc, 0.05 + k * 0.16), m="lab_grey")
+        box((0.62, DY1 - DY0 - 0.02, 0.04), (cx, dyc, 0.02), m="cable_black", bevel=0.004)
+    for k, z in enumerate((0.6, 0.4, 0.17)):                           # drawers, left
+        hh = 0.16 if k < 2 else 0.24
+        box((0.54, 0.02, hh), (-(W / 2 - 0.32), DY0 - 0.005, z), m="lab_grey", bevel=0.005)
+        box((0.14, 0.02, 0.02), (-(W / 2 - 0.32), DY0 - 0.025, z + hh * 0.25), m="lab_steel", bevel=0.004)
+        box((0.06, 0.003, 0.03), (-(W / 2 - 0.32), DY0 - 0.016, z - hh * 0.15), m="paper")
+    # right: an open cubby with the time-lapse recorders
+    box((0.54, 0.02, 0.6), (W / 2 - 0.32, DY1 - 0.06, 0.38), m="crt_dark")
+    for k in range(3):
+        with place(T((W / 2 - 0.32, DY0 + 0.22, 0.056 + k * 0.16))):
+            box((0.46, 0.34, 0.1), (0, 0, 0.05), m="vcr_plastic", bevel=0.008)
+            box((0.24, 0.006, 0.03), (-0.06, -0.172, 0.06), m="cable_black", bevel=0.002)      # the tape slot
+            with group("GlowGreen"):
+                box((0.08, 0.004, 0.02), (0.14, -0.172, 0.068), m="glow_green")
+            with group("GlowRed"):
+                box((0.008, 0.004, 0.008), (0.19, -0.172, 0.03), m="glow_red")
+            for i in range(6):
+                box((0.022, 0.008, 0.01), (-0.17 + i * 0.03, -0.172, 0.025), m="lab_steel", bevel=0.002)
+            if k == 1:                                                  # a tape half in
+                box((0.19, 0.06, 0.025), (-0.06, -0.19, 0.06), m="crt_dark", bevel=0.003)
+                box((0.12, 0.002, 0.018), (-0.06, -0.221, 0.06), m="log_paper")
+    for k in range(4):
+        cable([(W / 2 - 0.5 + k * 0.08, DY0 + 0.4, 0.12 + (k % 3) * 0.16), (W / 2 - 0.5 + k * 0.08, -0.05, 0.3),
+               (W / 2 - 0.3, 0.3, 0.1), (W / 2 - 0.2, 0.55, 0.04)], 0.007, "cable_black", bend=0.06, n=5)
+    top = DT
+    # video switcher: a sloped panel of numbered camera buttons, camera 3 selected
+    with place(T((-0.42, -0.36, top))):
+        slab([(-0.12, 0.0), (0.12, 0.0), (0.12, 0.09), (-0.12, 0.04)], 0.66, (0, 0, 0), (90, 0, 90), m="vcr_plastic",
+             bevel=0.006)
+        with place(T((0, 0, 0.065), (-11.8, 0, 0))):
+            for r in range(2):
+                for i in range(12):
+                    bx, by = -0.29 + i * 0.053, -0.05 + r * 0.06
+                    if r == 0 and i == 2:
+                        with group("GlowAmber"):
+                            box((0.034, 0.03, 0.014), (bx, by, 0.007), m="glow_amber", bevel=0.003)
+                    else:
+                        box((0.034, 0.03, 0.012), (bx, by, 0.006), m="lab_white" if r == 0 else "crt_dark",
+                            bevel=0.003)
+            box((0.62, 0.012, 0.002), (0, 0.0, 0.001), m="log_paper")
+    # the camera joystick
+    with place(T((0.05, -0.42, top))):
+        box((0.26, 0.2, 0.05), (0, 0, 0.025), m="vcr_plastic", bevel=0.01)
+        lathe([(0.04, 0.05), (0.03, 0.07), (0.015, 0.08), (0, 0.08)], m="cable_black", n=10)
+        cyl(0.008, 0.1, (0.005, 0.002, 0.12), (4, 6, 0), m="lab_steel", n=6)
+        sphere(0.02, (0.009, 0.008, 0.175), m="glow_red", n=8, rings=5)
+        for i in range(3):
+            box((0.025, 0.025, 0.01), (0.08, -0.05 + i * 0.04, 0.055), m="lab_white", bevel=0.003)
+    # the terminal with its keyboard (it's the one screaming)
+    with place(T(term)):
+        crt(0.34, 0.28, 0.32, 10)
+    box((0.34, 0.26, 0.012), (0.62, -0.25, top + 0.006), m="crt_dark")
+    with place(T((0.6, -0.58, top + 0.012), (-5, 0, 0))):
+        box((0.42, 0.15, 0.026), m="crt_beige", bevel=0.007)
+        for r in range(4):
+            for i in range(12):
+                box((0.026, 0.026, 0.01), (-0.17 + i * 0.031, -0.05 + r * 0.032, 0.017), m="lab_grey", bevel=0.002)
+    # telephone
+    material("phone_plastic", "bakelite", base="#b9ad8e")
+    with place(T((1.02, -0.4, top), (0, 0, -20))):
+        lathe([(0, 0), (0.11, 0), (0.1, 0.04), (0.075, 0.09), (0.05, 0.1), (0, 0.1)], m="phone_plastic", n=14,
+              stretch=(1.0, 0.85))
+        for i in range(10):
+            a = math.radians(30 + i * 28)
+            cyl(0.006, 0.004, (math.cos(a) * 0.035, -0.07 + math.sin(a) * 0.035 * 0.6, 0.07), (60, 0, 0),
+                m="crt_dark", n=6)
+        with place(T((0, 0, 0.12))):
+            box((0.22, 0.045, 0.025), m="phone_plastic", bevel=0.01)
+            for x in (-0.1, 0.1):
+                sphere(0.035, (x, 0, -0.01), m="phone_plastic", n=8, rings=5)
+        pts = [(0.1, 0.05, 0.03)] + [(0.12 + 0.012 * math.sin(k * 1.4), 0.08 + k * 0.012, 0.015 + 0.012 * math.cos(k * 1.4))
+                                     for k in range(14)]
+        sweep(pts, 0.004, "crt_dark", 4)                                # the coiled cord
+    # microphone on its gooseneck
+    with place(T((-0.95, -0.3, top))):
+        cyl(0.07, 0.025, (0, 0, 0.0125), m="crt_dark", n=14)
+        box((0.03, 0.02, 0.012), (0.03, -0.05, 0.03), m="glow_red", bevel=0.003)
+        sweep([(0, 0, 0.025), (0, 0, 0.15), (0.0, -0.06, 0.28), (0, -0.14, 0.31)], 0.008, "lab_steel", 6, bend=0.08)
+        with place(T((0, -0.16, 0.315), (60, 0, 0))):
+            cyl(0.02, 0.08, m="crt_dark", n=10)
+            cyl(0.021, 0.02, (0, 0, 0.035), m="lab_steel", n=10)
+    # log book open with a pen, cold coffee, a torch, the ashtray
+    for s in (-1, 1):
+        with place(T((-0.95 + s * 0.105, -0.6, top + 0.008), (0, s * -3, 8))):
+            box((0.2, 0.28, 0.012), m="log_paper", bevel=0.002)
+    for k in range(9):                                                  # ruled lines of handwriting
+        box((0.16, 0.003, 0.0005), (-0.95 - 0.105 + 0.03 * math.sin(k), -0.6 - 0.1 + k * 0.025, top + 0.0148),
+            (0, 0, 8), m="cable_black")
+    cyl(0.004, 0.14, (-0.76, -0.6, top + 0.005), (90, 0, 70), m="cable_blue", n=6)
+    with place(T((-0.6, -0.15, top))):
+        lathe([(0, 0), (0.04, 0), (0.042, 0.1), (0.038, 0.1), (0.036, 0.008), (0, 0.008)], m="mug", n=14)
+        cyl(0.037, 0.002, (0, 0, 0.075), m="crt_dark", n=14)
+        torus(0.025, 0.006, (0.05, 0, 0.05), (90, 0, 0), m="mug", n=10, k=5)
+    cyl(0.022, 0.2, (0.32, -0.15, top + 0.022), (0, 90, 30), m="crt_dark", n=10)
+    cyl(0.03, 0.04, (0.41, -0.1, top + 0.03), (0, 90, 30), m="lab_steel", n=10)
+    lathe([(0, 0), (0.06, 0), (0.065, 0.02), (0.05, 0.02), (0.045, 0.006), (0, 0.006)], (-0.2, -0.12, top), m="glass",
+          n=12)
+    for i in range(3):
+        cyl(0.004, 0.035, (-0.2 + 0.02 * math.cos(i * 2), -0.12 + 0.02 * math.sin(i * 2), top + 0.012), (80, 0, i * 50),
+            m="log_paper", n=5)
+    # ---- the chair, pushed back and turned (its own mesh: move it or bin it)
+    with group("Chair", (0.35, -1.25, 0)), place(T((0.35, -1.25, 0), (0, 0, 32))):
+        for i in range(5):
+            a = math.radians(90 + 72 * i)
+            sweep([(0, 0, 0.1), (math.cos(a) * 0.3, math.sin(a) * 0.3, 0.07)], 0.018, "crt_dark", 6)
+            caster((math.cos(a) * 0.3, math.sin(a) * 0.3, 0), 0.025, "crt_dark", swivel=i * 50, stem=0.0)
+        cyl(0.04, 0.06, (0, 0, 0.1), m="crt_dark", n=10)
+        cyl(0.022, 0.3, (0, 0, 0.27), m="lab_steel", n=10)
+        box((0.2, 0.2, 0.03), (0, 0, 0.42), m="crt_dark", bevel=0.006)
+        slab(rounded_rect(0.48, 0.46, 0.1, 3), 0.08, (0, 0, 0.47), m="chair_vinyl", bevel=0.025)
+        box((0.06, 0.05, 0.3), (0, 0.24, 0.5), m="lab_grey", bevel=0.008)
+        with place(T((0, 0.27, 0.82), (-100, 0, 0))):
+            slab(rounded_rect(0.44, 0.48, 0.12, 3), 0.07, m="chair_vinyl", bevel=0.022)
+        for s in (-1, 1):
+            sweep([(s * 0.2, 0.05, 0.47), (s * 0.25, 0.05, 0.62), (s * 0.25, -0.12, 0.64)], 0.014, "crt_dark", 6,
+                  bend=0.04)
+            box((0.06, 0.24, 0.03), (s * 0.25, -0.05, 0.655), m="chair_vinyl", bevel=0.01)

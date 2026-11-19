@@ -19,6 +19,8 @@ PARTS = []
 GROUP = ["Main"]          # the part being built belongs to this named mesh (see group())
 GROUPS = {}               # name -> pivot point (metres) for the exported mesh's origin
 PIVOT_OFFSETS = {}        # mesh name -> its pivot from its bounding-box centre (studs, Roblox axes)
+UV_BOOST = {}             # mesh-name prefix -> how much bigger its UV islands get (more pixels: screens, pictures)
+PIECE_TEX = {}            # piece name -> its texture size, when it isn't TEX
 WORK = "/tmp/asylum_work"      # (build.py points this at the output folder: decal pictures go here)
 STACK = [Matrix.Identity(4)]
 EMPTIES = []
@@ -985,6 +987,7 @@ def reset():
     DECALS.clear()
     GROUPS.clear()
     PIVOT_OFFSETS.clear()
+    UV_BOOST.clear()
     del GROUP[1:]
     del STACK[1:]
     IMAGES["AO"] = new_image("AO", TEX, True)
@@ -1062,6 +1065,20 @@ def finish(name, out_dir, previews=None):
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.ops.mesh.select_all(action="SELECT")
     bpy.ops.uv.smart_project(angle_limit=math.radians(55), island_margin=0.0, area_weight=0.0, scale_to_bounds=False)
+    if UV_BOOST:
+        bpy.ops.object.mode_set(mode="OBJECT")
+        grp = ob.data.attributes["grp"].data
+        uv = ob.data.uv_layers.active.data
+        for poly in ob.data.polygons:
+            gname = names[grp[poly.index].value]
+            f = next((v for k, v in UV_BOOST.items() if gname.startswith(k)), None)
+            if f:
+                loops = list(poly.loop_indices)
+                c = sum((uv[i].uv for i in loops), V((0, 0))) / len(loops)
+                for i in loops:
+                    uv[i].uv = c + (uv[i].uv - c) * f
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
     bpy.ops.uv.pack_islands(rotate=True, margin=0.004, shape_method="CONCAVE")
     bpy.ops.object.mode_set(mode="OBJECT")
 
@@ -1198,7 +1215,7 @@ def _apply_looks(ob):
 
 # how the named meshes look once SetupLabGlow has run in Studio (previews only)
 LOOKS = {"Glass": ("glass", 0.0, 0.35), "Liquid": ("glow", 2.0, 0.45), "Glow": ("glow", 5.0, 1.0),
-         "Screen": ("glow", 1.6, 1.0), "Lamp": ("glow", 12.0, 1.0)}
+         "Screen": ("glow", 1.6, 1.0), "Lamp": ("glow", 12.0, 1.0), "Feed": ("glow", 1.3, 1.0)}
 
 
 def _look_material(look, colour_image):
@@ -1280,10 +1297,12 @@ def auto_views(ob, close=None):
 PIECES = {}
 
 
-def piece(name, close=None):
+def piece(name, close=None, tex=None):
     """@piece("Name", close=(camera at, look at, lens) in studs) registers a builder"""
     def deco(fn):
         PIECES[name] = (fn, close)
+        if tex:
+            PIECE_TEX[name] = tex
         return fn
     return deco
 

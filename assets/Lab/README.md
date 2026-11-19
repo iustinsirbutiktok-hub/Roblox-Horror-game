@@ -1,6 +1,6 @@
 # Facility & Lab models
 
-Twelve pieces for the facility: specimen tanks, a cryo pod, consoles, racks, power gear and
+Thirteen pieces for the facility: specimen tanks, a cryo pod, consoles, racks, power gear and
 services. They're lightly aged: worn paint, grime and scuffs, no rust. Low poly, with baked
 colour and normal maps embedded in each FBX.
 
@@ -10,6 +10,7 @@ colour and normal maps embedded in each FBX.
 | ContainmentTankBroken | The same tank smashed from the inside: jagged glass, shards and glowing fluid on the floor, tubes torn off, empty | 8.3 x 13.5 x 11.0 |
 | CryoPod | Tilted cryo pod with a frosted canopy and someone frozen inside | 3.8 x 8.6 x 5.5 |
 | ControlConsole | Sloped desk of switches, meters and lamps, three old monitors, keyboard tray, covered emergency button | 7.2 x 5.6 x 4.3 |
+| SurveillanceStation | Security control: a steel rack of twelve CRT monitors showing the facility's cameras, a desk with video switcher, camera joystick, phone, microphone, a terminal flashing CONTAINMENT BREACH, time-lapse recorders, alarm beacon on top; the chair (its own part) pushed back | 7.9 x 6.7 x 8.8 |
 | ServerRack | Equipment rack with blinking LEDs, patch cables, louvred sides | 2.0 x 2.8 x 8.1 |
 | BreakerPanel | Wall distribution board, door hanging open, a tripped breaker tagged DO NOT SWITCH ON | 3.3 x 3.4 x 9.0 |
 | Transformer | Oil transformer on a hazard-striped plinth, ceramic bushings, cooling fins | 5.8 x 5.2 x 9.5 |
@@ -39,6 +40,24 @@ script can flicker or kill them (blackouts, alarms).
 
 `ContainmentTank` has the curled-up thing as its own part, `Specimen`. Delete it for an
 empty tank.
+
+## The surveillance screens
+
+The twelve screens are their own parts, `Feed01` to `Feed12`. Each one shows a camera:
+- **Corridors:** the east and west corridors of Sector C (look at the end of the west one) and the dark lower level.
+- **Rooms:** the tank room, padded cell 6 and research lab B.
+- **Outside and stairs:** the north gate, stairwell B and blast door 2.
+- **Dead feeds:** one screen of static and one NO SIGNAL.
+- **The alarm:** the desk terminal shows CONTAINMENT BREACH.
+
+The pictures are baked into the model's texture, and SetupLabGlow gives each screen a soft light.
+For **sharp, glowing feeds**, upload `SurveillanceFeeds.png` (Asset Manager > Images) and paste
+its ID into `FEED_ATLAS` at the top of SetupLabGlow before you run it. Each screen then shows its
+picture on a SurfaceGui that isn't affected by the room's lighting, so it glows in the dark.
+Feed *n* is tile *n* of the 4 x 3 atlas, read left to right and top to bottom; swap tiles in
+the image to change what a screen shows.
+
+The chair is its own part (`Chair`), so you can move it or delete it.
 
 ## The moving parts
 

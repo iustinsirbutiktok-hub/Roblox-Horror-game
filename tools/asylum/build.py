@@ -6,11 +6,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import kit
-import surgery, ward, rooms, doors, station, station2, patient, lab  # noqa: F401  (they register their pieces)
+import surgery, ward, rooms, doors, station, station2, patient, lab, mansion  # noqa: F401  (they register their pieces)
 
 
 def build_one(name, out):
     fn, close = kit.PIECES[name]
+    kit.TEX = kit.PIECE_TEX.get(name, 1024)
     kit.reset()
     kit.WORK = out
     fn()
