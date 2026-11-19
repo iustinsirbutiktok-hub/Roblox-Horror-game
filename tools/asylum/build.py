@@ -6,7 +6,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import kit
-import surgery, ward, rooms, doors, station, station2, patient  # noqa: F401  (they register their pieces)
+import surgery, ward, rooms, doors, station, station2, patient, lab  # noqa: F401  (they register their pieces)
 
 
 def build_one(name, out):

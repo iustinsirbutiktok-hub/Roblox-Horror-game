@@ -18,6 +18,7 @@ TEX = 1024
 PARTS = []
 GROUP = ["Main"]          # the part being built belongs to this named mesh (see group())
 GROUPS = {}               # name -> pivot point (metres) for the exported mesh's origin
+PIVOT_OFFSETS = {}        # mesh name -> its pivot from its bounding-box centre (studs, Roblox axes)
 WORK = "/tmp/asylum_work"      # (build.py points this at the output folder: decal pictures go here)
 STACK = [Matrix.Identity(4)]
 EMPTIES = []
@@ -983,6 +984,7 @@ def reset():
     EMPTIES.clear()
     DECALS.clear()
     GROUPS.clear()
+    PIVOT_OFFSETS.clear()
     del GROUP[1:]
     del STACK[1:]
     IMAGES["AO"] = new_image("AO", TEX, True)
@@ -1131,6 +1133,7 @@ def finish(name, out_dir, previews=None):
     select_only(ob)
     # split into the named meshes (all on the one texture), each with its origin at its pivot
     used = sorted({v.value for v in ob.data.attributes["grp"].data})
+    split = []
     if len(used) > 1:
         for o in bpy.context.scene.objects:
             o.select_set(False)
@@ -1147,11 +1150,18 @@ def finish(name, out_dir, previews=None):
             bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
             piv = V(GROUPS.get(gname, (0, 0, 0))) * STUDS_PER_M
             bmesh.ops.translate(bm, vec=-piv, verts=bm.verts)
+            if GROUPS.get(gname, (0, 0, 0)) != (0, 0, 0):
+                # where the hinge sits from the mesh's box centre (Roblox recentres meshes), in Roblox axes
+                lo = V([min(v.co[i] for v in bm.verts) for i in range(3)])
+                hi = V([max(v.co[i] for v in bm.verts) for i in range(3)])
+                c = (lo + hi) / 2
+                PIVOT_OFFSETS[cp.name] = (round(-c.x, 3), round(-c.z, 3), round(c.y, 3))
             bm.to_mesh(cp.data)
             bm.free()
             cp.location = piv
             cp.hide_render = True
             cp.select_set(True)
+            split.append(cp)
     bpy.ops.export_scene.fbx(
         filepath=os.path.join(out_dir, name + ".fbx"), use_selection=True, object_types={"MESH"},
         apply_unit_scale=True, apply_scale_options="FBX_SCALE_UNITS", global_scale=1.0,
@@ -1159,16 +1169,64 @@ def finish(name, out_dir, previews=None):
         mesh_smooth_type="FACE",
     )
     dims = ob.dimensions
-    info = dict(name=name, tris=tri_count(ob), studs=tuple(round(d, 2) for d in dims))
+    info = dict(name=name, tris=tri_count(ob), studs=tuple(round(d, 2) for d in dims), pivots=dict(PIVOT_OFFSETS))
     print("BUILT", info)
+    global SPLIT, SPLIT_IMAGE
+    SPLIT, SPLIT_IMAGE = split, ci
     if previews:
         render_previews(ob, out_dir, previews)
     return info
 
 
+SPLIT, SPLIT_IMAGE = [], None
+
+
+def _apply_looks(ob):
+    """previews show the glass and the glowing parts the way Studio will (SetupLabGlow)"""
+    def look_of(c):
+        return next((v for k, v in LOOKS.items() if c.name.startswith(k)), None)
+    if not any(look_of(c) for c in SPLIT):
+        return
+    ob.hide_render = True
+    for c in SPLIT:
+        c.hide_render = False
+        look = look_of(c)
+        if look:
+            c.data.materials.clear()
+            c.data.materials.append(_look_material(look, SPLIT_IMAGE))
+
+
+# how the named meshes look once SetupLabGlow has run in Studio (previews only)
+LOOKS = {"Glass": ("glass", 0.0, 0.35), "Liquid": ("glow", 2.0, 0.45), "Glow": ("glow", 5.0, 1.0),
+         "Screen": ("glow", 1.6, 1.0), "Lamp": ("glow", 12.0, 1.0)}
+
+
+def _look_material(look, colour_image):
+    kind, strength, alpha = look
+    m = bpy.data.materials.new("look_" + kind)
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes["Principled BSDF"]
+    if kind == "glass":
+        b.inputs["Base Color"].default_value = (0.78, 0.88, 0.92, 1)
+        b.inputs["Roughness"].default_value = 0.06
+        b.inputs["Transmission Weight"].default_value = 1.0
+        b.inputs["IOR"].default_value = 1.2
+        b.inputs["Alpha"].default_value = alpha
+    else:
+        t = nt.nodes.new("ShaderNodeTexImage")
+        t.image = colour_image
+        nt.links.new(t.outputs["Color"], b.inputs["Base Color"])
+        nt.links.new(t.outputs["Color"], b.inputs["Emission Color"])
+        b.inputs["Emission Strength"].default_value = strength
+        b.inputs["Alpha"].default_value = alpha
+    return m
+
+
 def render_previews(ob, out_dir, views):
     """views: [(suffix, camera location, look at, lens)] in studs"""
     scene = bpy.context.scene
+    _apply_looks(ob)
     scene.cycles.samples = 48
     scene.cycles.use_denoising = True
     scene.render.resolution_x = scene.render.resolution_y = 720
